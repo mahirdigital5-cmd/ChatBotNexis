@@ -1,10 +1,10 @@
 export const metadata = {
   title: "ChatBotNexis",
-  description: "AI chatbot dropship multi-produk"
+  description: "AI chatbot dropship"
 };
 
 export default function RootLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {
