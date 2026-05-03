@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { products } from "@/data/products";
+import { products } from "../../../data/products";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
