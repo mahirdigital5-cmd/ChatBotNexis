@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com"
 });
 
 const products = {
@@ -52,7 +53,7 @@ Balasan:
 `;
 
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "deepseek-v4-flash",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.6
     });
@@ -61,6 +62,8 @@ Balasan:
       reply: res.choices[0].message.content
     });
   } catch (error) {
+    console.error("DeepSeek error:", error);
+
     return Response.json(
       { reply: "Maaf kak, bot lagi gangguan sebentar 🙏" },
       { status: 500 }
