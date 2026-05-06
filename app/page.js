@@ -25,6 +25,21 @@ export default function Home() {
     >
       <h1>WA Auto Reply Trigger</h1>
 
+<button
+  style={{
+    background: "#00a884",
+    color: "white",
+    border: "none",
+    padding: "12px 18px",
+    borderRadius: 8,
+    fontWeight: "bold",
+    marginTop: 10,
+    cursor: "pointer",
+  }}
+>
+  + Tambah Trigger
+</button>
+
       <div
         style={{
           marginTop: 30,
