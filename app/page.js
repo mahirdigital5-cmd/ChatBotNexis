@@ -1,36 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import supabase from "../lib/supabase";
 
 export default function Home() {
-  const [triggers, setTriggers] = useState([
-    {
-      keyword: "mau cod",
-      response: "Baik kak, kirimannya kemana?",
-      type: "Mengandung",
-      active: true,
-    },
-    {
-      keyword: "cek harga lampu",
-      response: "Harga lampu 13 ribu",
-      type: "Sama Persis",
-      active: true,
-    },
-  ]);
+  const [triggers, setTriggers] = useState([]);
 
   const [keyword, setKeyword] = useState("");
   const [response, setResponse] = useState("");
   const [type, setType] = useState("Mengandung");
+
   const [showForm, setShowForm] = useState(false);
 
-  function addTrigger() {
+  async function getTriggers() {
+    const { data, error } = await supabase
+      .from("triggers")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (!error) {
+      setTriggers(data);
+    }
+  }
+
+  useEffect(() => {
+    getTriggers();
+  }, []);
+
+  async function addTrigger() {
     if (!keyword || !response) {
-      alert("Kata kunci dan respon wajib diisi");
+      alert("Isi semua field");
       return;
     }
 
-    setTriggers([
-      ...triggers,
+    const { error } = await supabase.from("triggers").insert([
       {
         keyword,
         response,
@@ -39,21 +42,31 @@ export default function Home() {
       },
     ]);
 
-    setKeyword("");
-    setResponse("");
-    setType("Mengandung");
-    setShowForm(false);
+    if (!error) {
+      setKeyword("");
+      setResponse("");
+      setType("Mengandung");
+      setShowForm(false);
+
+      getTriggers();
+    }
   }
 
-  function toggleStatus(index) {
-    const updated = [...triggers];
-    updated[index].active = !updated[index].active;
-    setTriggers(updated);
+  async function toggleStatus(id, current) {
+    await supabase
+      .from("triggers")
+      .update({
+        active: !current,
+      })
+      .eq("id", id);
+
+    getTriggers();
   }
 
-  function deleteTrigger(index) {
-    const updated = triggers.filter((_, i) => i !== index);
-    setTriggers(updated);
+  async function deleteTrigger(id) {
+    await supabase.from("triggers").delete().eq("id", id);
+
+    getTriggers();
   }
 
   return (
@@ -98,20 +111,32 @@ export default function Home() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="Kata kunci"
-            style={{ padding: 12, marginRight: 10, marginBottom: 10 }}
+            style={{
+              padding: 12,
+              marginRight: 10,
+              marginBottom: 10,
+            }}
           />
 
           <input
             value={response}
             onChange={(e) => setResponse(e.target.value)}
             placeholder="Respon otomatis"
-            style={{ padding: 12, marginRight: 10, marginBottom: 10 }}
+            style={{
+              padding: 12,
+              marginRight: 10,
+              marginBottom: 10,
+            }}
           />
 
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            style={{ padding: 12, marginRight: 10, marginBottom: 10 }}
+            style={{
+              padding: 12,
+              marginRight: 10,
+              marginBottom: 10,
+            }}
           >
             <option>Mengandung</option>
             <option>Sama Persis</option>
@@ -154,22 +179,32 @@ export default function Home() {
           </thead>
 
           <tbody>
-            {triggers.map((item, index) => (
-              <tr key={index}>
+            {triggers.map((item) => (
+              <tr key={item.id}>
                 <td>{item.keyword}</td>
                 <td>{item.response}</td>
                 <td>{item.type}</td>
-                <td>{item.active ? "🟢 Aktif" : "🔴 Nonaktif"}</td>
+
+                <td>
+                  {item.active ? "🟢 Aktif" : "🔴 Nonaktif"}
+                </td>
+
                 <td>
                   <button
-                    onClick={() => toggleStatus(index)}
-                    style={{ marginRight: 8, cursor: "pointer" }}
+                    onClick={() =>
+                      toggleStatus(item.id, item.active)
+                    }
+                    style={{
+                      marginRight: 10,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                    }}
                   >
                     {item.active ? "Matikan" : "Aktifkan"}
                   </button>
 
                   <button
-                    onClick={() => deleteTrigger(index)}
+                    onClick={() => deleteTrigger(item.id)}
                     style={{
                       background: "red",
                       color: "white",
