@@ -38,6 +38,44 @@ export default function Home() {
   }}
 >
   + Tambah Trigger
+    <div
+  style={{
+    marginTop: 20,
+    background: "white",
+    padding: 20,
+    borderRadius: 10,
+  }}
+>
+  <h3>Tambah Trigger Baru</h3>
+
+  <input
+    placeholder="Kata kunci"
+    style={{ padding: 12, marginRight: 10 }}
+  />
+
+  <input
+    placeholder="Respon otomatis"
+    style={{ padding: 12, marginRight: 10 }}
+  />
+
+  <select style={{ padding: 12, marginRight: 10 }}>
+    <option>Mengandung</option>
+    <option>Sama Persis</option>
+  </select>
+
+  <button
+    style={{
+      background: "#00a884",
+      color: "white",
+      border: "none",
+      padding: "12px 18px",
+      borderRadius: 8,
+      fontWeight: "bold",
+    }}
+  >
+    Simpan
+  </button>
+</div>
 </button>
 
       <div
