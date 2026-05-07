@@ -6,15 +6,22 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function GET() {
+export async function POST(req) {
   try {
+    const body = await req.json();
+
+    const uploaded = await cloudinary.uploader.upload(body.image, {
+      folder: "chatbotnexis",
+    });
+
     return Response.json({
       success: true,
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      image: uploaded.secure_url,
     });
   } catch (err) {
     return Response.json({
       success: false,
+      error: err.message,
     });
   }
 }
