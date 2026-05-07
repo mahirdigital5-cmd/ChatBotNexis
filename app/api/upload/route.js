@@ -1,3 +1,5 @@
+import { v2 as cloudinary } from "cloudinary";
+
 export async function POST(req) {
   try {
     const body = await req.json();
