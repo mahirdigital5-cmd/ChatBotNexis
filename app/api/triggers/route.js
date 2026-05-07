@@ -3,6 +3,7 @@ export async function GET() {
     {
       keyword: "halo",
       response: "halo jugaa",
+      image: "",
       is_active: true,
     },
   ]);
