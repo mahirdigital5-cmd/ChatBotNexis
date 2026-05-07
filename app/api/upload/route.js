@@ -8,11 +8,9 @@ cloudinary.config({
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-
     return Response.json({
       success: true,
-      image: body.image,
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     });
   } catch (err) {
     return Response.json({
