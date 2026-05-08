@@ -2,9 +2,9 @@ export async function GET() {
   return Response.json([
     {
       keyword: "halo",
-      response: "ini gambar test",
+      response: "ini gambar dari cloudinary",
       image:
-        "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+        "https://res.cloudinary.com/dw1oauijs/image/upload/v1778212352/chatbotnexis/a2ky01smsuuptyrltbcu.jpg",
       is_active: true,
     },
   ]);
