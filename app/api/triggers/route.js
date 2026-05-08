@@ -1,4 +1,4 @@
-import supabase from "../../../lib/supabase.js";
+import supabase from "@/lib/supabase";
 
 export async function GET() {
   const { data, error } = await supabase
@@ -7,6 +7,8 @@ export async function GET() {
     .eq("active", true);
 
   if (error) {
+    console.log(error);
+
     return Response.json([]);
   }
 
