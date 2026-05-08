@@ -1,10 +1,14 @@
+import supabase from "../../../lib/supabase";
+
 export async function GET() {
-  return Response.json([
-    {
-      keyword: "halo",
-      response: "ini test gambar",
-      image: "https://picsum.photos/300/300",
-      is_active: true,
-    },
-  ]);
+  const { data, error } = await supabase
+    .from("triggers")
+    .select("*")
+    .eq("active", true);
+
+  if (error) {
+    return Response.json([]);
+  }
+
+  return Response.json(data);
 }
