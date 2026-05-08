@@ -9,8 +9,10 @@ export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [response, setResponse] = useState("");
   const [type, setType] = useState("Mengandung");
+  const [image, setImage] = useState("");
 
   const [showForm, setShowForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   async function getTriggers() {
     const { data, error } = await supabase
@@ -27,9 +29,40 @@ export default function Home() {
     getTriggers();
   }, []);
 
+  async function uploadImage(file) {
+    setUploading(true);
+
+    const reader = new FileReader();
+
+    reader.onloadend = async () => {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: reader.result,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setImage(data.image);
+        alert("Gambar berhasil diupload");
+      } else {
+        alert("Upload gambar gagal");
+      }
+
+      setUploading(false);
+    };
+
+    reader.readAsDataURL(file);
+  }
+
   async function addTrigger() {
     if (!keyword || !response) {
-      alert("Isi semua field");
+      alert("Isi kata kunci dan respon");
       return;
     }
 
@@ -38,6 +71,7 @@ export default function Home() {
         keyword,
         response,
         type,
+        image,
         active: true,
       },
     ]);
@@ -46,6 +80,7 @@ export default function Home() {
       setKeyword("");
       setResponse("");
       setType("Mengandung");
+      setImage("");
       setShowForm(false);
 
       getTriggers();
@@ -121,7 +156,7 @@ export default function Home() {
           <input
             value={response}
             onChange={(e) => setResponse(e.target.value)}
-            placeholder="Respon otomatis"
+            placeholder="Respon otomatis / caption"
             style={{
               padding: 12,
               marginRight: 10,
@@ -142,8 +177,41 @@ export default function Home() {
             <option>Sama Persis</option>
           </select>
 
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) uploadImage(file);
+            }}
+            style={{
+              padding: 12,
+              marginRight: 10,
+              marginBottom: 10,
+            }}
+          />
+
+          {uploading && <p>Sedang upload gambar...</p>}
+
+          {image && (
+            <div style={{ marginBottom: 10 }}>
+              <img
+                src={image}
+                alt="Preview"
+                style={{
+                  width: 120,
+                  borderRadius: 8,
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              />
+              <small>Gambar siap dikirim</small>
+            </div>
+          )}
+
           <button
             onClick={addTrigger}
+            disabled={uploading}
             style={{
               background: "#00a884",
               color: "white",
@@ -172,6 +240,7 @@ export default function Home() {
             <tr>
               <th align="left">Kata Kunci</th>
               <th align="left">Respon</th>
+              <th align="left">Gambar</th>
               <th align="left">Trigger</th>
               <th align="left">Status</th>
               <th align="left">Aksi</th>
@@ -183,17 +252,29 @@ export default function Home() {
               <tr key={item.id}>
                 <td>{item.keyword}</td>
                 <td>{item.response}</td>
-                <td>{item.type}</td>
 
                 <td>
-                  {item.active ? "🟢 Aktif" : "🔴 Nonaktif"}
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt="Trigger"
+                      style={{
+                        width: 70,
+                        borderRadius: 6,
+                      }}
+                    />
+                  ) : (
+                    "-"
+                  )}
                 </td>
+
+                <td>{item.type}</td>
+
+                <td>{item.active ? "Aktif" : "Nonaktif"}</td>
 
                 <td>
                   <button
-                    onClick={() =>
-                      toggleStatus(item.id, item.active)
-                    }
+                    onClick={() => toggleStatus(item.id, item.active)}
                     style={{
                       marginRight: 10,
                       padding: "6px 10px",
