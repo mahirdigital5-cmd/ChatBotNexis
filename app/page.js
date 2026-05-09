@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import supabase from "../lib/supabase";
 
+const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
+
 export default function Home() {
   const [triggers, setTriggers] = useState([]);
 
@@ -13,6 +15,9 @@ export default function Home() {
 
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const [waStatus, setWaStatus] = useState(null);
+  const [qrData, setQrData] = useState(null);
 
   async function getTriggers() {
     const { data, error } = await supabase
@@ -25,8 +30,26 @@ export default function Home() {
     }
   }
 
+  async function getWaStatus() {
+    try {
+      const res = await fetch(`${WA_ENGINE_URL}/qr-json?t=${Date.now()}`);
+      const data = await res.json();
+
+      setWaStatus(data.connected);
+      setQrData(data.qr);
+    } catch (err) {
+      setWaStatus(false);
+      setQrData(null);
+    }
+  }
+
   useEffect(() => {
     getTriggers();
+    getWaStatus();
+
+    const interval = setInterval(getWaStatus, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function uploadImage(file) {
@@ -61,8 +84,8 @@ export default function Home() {
   }
 
   async function addTrigger() {
-    if (!keyword || !response) {
-      alert("Isi kata kunci dan respon");
+    if (!keyword || (!response && !image)) {
+      alert("Isi kata kunci dan minimal respon atau gambar");
       return;
     }
 
@@ -114,6 +137,39 @@ export default function Home() {
       }}
     >
       <h1>WA Auto Reply Trigger</h1>
+
+      <div
+        style={{
+          marginTop: 15,
+          background: "white",
+          padding: 20,
+          borderRadius: 10,
+          marginBottom: 20,
+        }}
+      >
+        <h3>Status WhatsApp</h3>
+
+        <p>
+          Status:{" "}
+          <b style={{ color: waStatus ? "green" : "red" }}>
+            {waStatus ? "Terhubung" : "Belum Terhubung"}
+          </b>
+        </p>
+
+        {!waStatus && qrData && (
+          <div>
+            <p>Scan QR ini dari WhatsApp:</p>
+            <img
+              src={qrData}
+              alt="QR WhatsApp"
+              style={{
+                width: 250,
+                borderRadius: 10,
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       <button
         onClick={() => setShowForm(!showForm)}
