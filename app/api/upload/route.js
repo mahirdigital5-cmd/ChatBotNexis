@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 
 cloudinary.config({
@@ -5,19 +6,6 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-const headers = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers,
-  });
-}
 
 export async function POST(req) {
   try {
@@ -27,20 +15,15 @@ export async function POST(req) {
       folder: "chatbotnexis",
     });
 
-    return Response.json(
-      {
-        success: true,
-        image: uploaded.secure_url,
-      },
-      { headers }
-    );
+    return NextResponse.json({
+      success: true,
+      image: uploaded.secure_url,
+    });
   } catch (err) {
-    return Response.json(
-      {
-        success: false,
-        error: err.message,
-      },
-      { status: 500, headers }
-    );
+    console.log(err);
+
+    return NextResponse.json({
+      success: false,
+    });
   }
 }
