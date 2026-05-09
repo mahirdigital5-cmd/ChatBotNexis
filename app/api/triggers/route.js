@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import supabase from "@/lib/supabase";
 
 export async function GET() {
@@ -9,8 +10,8 @@ export async function GET() {
   if (error) {
     console.log(error);
 
-    return Response.json([]);
+    return NextResponse.json([]);
   }
 
-  return Response.json(data);
+  return NextResponse.json(data);
 }
