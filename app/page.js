@@ -43,6 +43,19 @@ export default function Home() {
     }
   }
 
+  async function connectWa() {
+    await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`);
+    setTimeout(getWaStatus, 2000);
+  }
+
+  async function logoutWa() {
+    const confirmLogout = confirm("Yakin mau logout WhatsApp?");
+    if (!confirmLogout) return;
+
+    await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`);
+    setTimeout(getWaStatus, 2000);
+  }
+
   useEffect(() => {
     getTriggers();
     getWaStatus();
@@ -156,15 +169,54 @@ export default function Home() {
           </b>
         </p>
 
+        <div style={{ marginTop: 15 }}>
+          {!waStatus && (
+            <button
+              onClick={connectWa}
+              style={{
+                background: "#00a884",
+                color: "white",
+                border: "none",
+                padding: "10px 15px",
+                borderRadius: 8,
+                fontWeight: "bold",
+                cursor: "pointer",
+                marginRight: 10,
+              }}
+            >
+              Hubungkan WA
+            </button>
+          )}
+
+          {waStatus && (
+            <button
+              onClick={logoutWa}
+              style={{
+                background: "red",
+                color: "white",
+                border: "none",
+                padding: "10px 15px",
+                borderRadius: 8,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              Logout WA
+            </button>
+          )}
+        </div>
+
         {!waStatus && qrData && (
-          <div>
+          <div style={{ marginTop: 20 }}>
             <p>Scan QR ini dari WhatsApp:</p>
+
             <img
               src={qrData}
               alt="QR WhatsApp"
               style={{
                 width: 250,
                 borderRadius: 10,
+                border: "1px solid #ddd",
               }}
             />
           </div>
@@ -307,6 +359,7 @@ export default function Home() {
             {triggers.map((item) => (
               <tr key={item.id}>
                 <td>{item.keyword}</td>
+
                 <td>{item.response}</td>
 
                 <td>
