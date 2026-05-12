@@ -6,6 +6,10 @@ import supabase from "../lib/supabase";
 const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
 
 export default function Home() {
+  const [flows, setFlows] = useState([]);
+  const [selectedFlow, setSelectedFlow] = useState(null);
+  const [newFlowName, setNewFlowName] = useState("");
+
   const [triggers, setTriggers] = useState([]);
 
   const [keyword, setKeyword] = useState("");
@@ -19,14 +23,57 @@ export default function Home() {
   const [waStatus, setWaStatus] = useState(null);
   const [qrData, setQrData] = useState(null);
 
-  async function getTriggers() {
+  async function getFlows() {
     const { data, error } = await supabase
-      .from("triggers")
+      .from("flows")
       .select("*")
       .order("id", { ascending: false });
 
     if (!error) {
-      setTriggers(data);
+      setFlows(data || []);
+
+      if (!selectedFlow && data && data.length > 0) {
+        setSelectedFlow(data[0]);
+        getTriggers(data[0].id);
+      }
+    }
+  }
+
+  async function addFlow() {
+    if (!newFlowName) {
+      alert("Isi nama alur dulu");
+      return;
+    }
+
+    const { error } = await supabase.from("flows").insert([
+      {
+        name: newFlowName,
+      },
+    ]);
+
+    if (!error) {
+      setNewFlowName("");
+      getFlows();
+    }
+  }
+
+  async function selectFlow(flow) {
+    setSelectedFlow(flow);
+    setShowForm(false);
+    getTriggers(flow.id);
+  }
+
+  async function getTriggers(flowId = selectedFlow?.id) {
+    if (!flowId) return;
+
+    const { data, error } = await supabase
+      .from("triggers")
+      .select("*")
+      .eq("flow_id", flowId)
+      .order("id", { ascending: false });
+
+    if (!error) {
+      setTriggers(data || []);
     }
   }
 
@@ -62,7 +109,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    getTriggers();
+    getFlows();
     getWaStatus();
 
     const interval = setInterval(getWaStatus, 5000);
@@ -102,6 +149,11 @@ export default function Home() {
   }
 
   async function addTrigger() {
+    if (!selectedFlow) {
+      alert("Pilih alur dulu");
+      return;
+    }
+
     if (!keyword || (!response && !image)) {
       alert("Isi kata kunci dan minimal respon atau gambar");
       return;
@@ -109,6 +161,7 @@ export default function Home() {
 
     const { error } = await supabase.from("triggers").insert([
       {
+        flow_id: selectedFlow.id,
         keyword,
         response,
         type,
@@ -124,7 +177,7 @@ export default function Home() {
       setImage("");
       setShowForm(false);
 
-      getTriggers();
+      getTriggers(selectedFlow.id);
     }
   }
 
@@ -228,194 +281,297 @@ export default function Home() {
         )}
       </div>
 
-      <button
-        onClick={() => setShowForm(!showForm)}
+      <div
         style={{
-          background: "#00a884",
-          color: "white",
-          border: "none",
-          padding: "12px 18px",
-          borderRadius: 8,
-          fontWeight: "bold",
-          marginTop: 10,
-          cursor: "pointer",
+          display: "grid",
+          gridTemplateColumns: "280px 1fr",
+          gap: 20,
+          alignItems: "start",
         }}
       >
-        + Tambah Trigger
-      </button>
-
-      {showForm && (
         <div
           style={{
-            marginTop: 20,
             background: "white",
-            padding: 20,
             borderRadius: 10,
+            padding: 20,
           }}
         >
-          <h3>Tambah Trigger Baru</h3>
+          <h3>Daftar Alur</h3>
 
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Kata kunci"
-            style={{
-              padding: 12,
-              marginRight: 10,
-              marginBottom: 10,
-            }}
-          />
+          <div style={{ marginBottom: 15 }}>
+            <input
+              value={newFlowName}
+              onChange={(e) => setNewFlowName(e.target.value)}
+              placeholder="Nama alur baru"
+              style={{
+                padding: 10,
+                width: "100%",
+                boxSizing: "border-box",
+                marginBottom: 10,
+              }}
+            />
 
-          <input
-            value={response}
-            onChange={(e) => setResponse(e.target.value)}
-            placeholder="Respon otomatis / caption"
-            style={{
-              padding: 12,
-              marginRight: 10,
-              marginBottom: 10,
-            }}
-          />
+            <button
+              onClick={addFlow}
+              style={{
+                background: "#00a884",
+                color: "white",
+                border: "none",
+                padding: "10px 12px",
+                borderRadius: 8,
+                fontWeight: "bold",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              + Tambah Alur
+            </button>
+          </div>
 
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
+          {flows.length === 0 && <p>Belum ada alur.</p>}
+
+          {flows.map((flow) => (
+            <div
+              key={flow.id}
+              onClick={() => selectFlow(flow)}
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 8,
+                cursor: "pointer",
+                background:
+                  selectedFlow?.id === flow.id ? "#00a884" : "#f2f2f2",
+                color: selectedFlow?.id === flow.id ? "white" : "black",
+                fontWeight: selectedFlow?.id === flow.id ? "bold" : "normal",
+              }}
+            >
+              {flow.name}
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div
             style={{
-              padding: 12,
-              marginRight: 10,
-              marginBottom: 10,
+              background: "white",
+              borderRadius: 10,
+              padding: 20,
+              marginBottom: 20,
             }}
           >
-            <option>Mengandung</option>
-            <option>Sama Persis</option>
-          </select>
+            <h3>
+              Trigger Alur:{" "}
+              <span style={{ color: "#00a884" }}>
+                {selectedFlow ? selectedFlow.name : "Belum pilih alur"}
+              </span>
+            </h3>
 
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) uploadImage(file);
-            }}
-            style={{
-              padding: 12,
-              marginRight: 10,
-              marginBottom: 10,
-            }}
-          />
+            <button
+              onClick={() => setShowForm(!showForm)}
+              disabled={!selectedFlow}
+              style={{
+                background: selectedFlow ? "#00a884" : "#999",
+                color: "white",
+                border: "none",
+                padding: "12px 18px",
+                borderRadius: 8,
+                fontWeight: "bold",
+                marginTop: 10,
+                cursor: selectedFlow ? "pointer" : "not-allowed",
+              }}
+            >
+              + Tambah Trigger
+            </button>
+          </div>
 
-          {uploading && <p>Sedang upload gambar...</p>}
+          {showForm && selectedFlow && (
+            <div
+              style={{
+                marginBottom: 20,
+                background: "white",
+                padding: 20,
+                borderRadius: 10,
+              }}
+            >
+              <h3>Tambah Trigger Baru</h3>
 
-          {image && (
-            <div style={{ marginBottom: 10 }}>
-              <img
-                src={image}
-                alt="Preview"
+              <p>
+                Alur: <b>{selectedFlow.name}</b>
+              </p>
+
+              <input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="Kata kunci"
                 style={{
-                  width: 120,
-                  borderRadius: 8,
-                  display: "block",
-                  marginBottom: 8,
+                  padding: 12,
+                  marginRight: 10,
+                  marginBottom: 10,
                 }}
               />
-              <small>Gambar siap dikirim</small>
+
+              <input
+                value={response}
+                onChange={(e) => setResponse(e.target.value)}
+                placeholder="Respon otomatis / caption"
+                style={{
+                  padding: 12,
+                  marginRight: 10,
+                  marginBottom: 10,
+                }}
+              />
+
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                style={{
+                  padding: 12,
+                  marginRight: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <option>Mengandung</option>
+                <option>Sama Persis</option>
+              </select>
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) uploadImage(file);
+                }}
+                style={{
+                  padding: 12,
+                  marginRight: 10,
+                  marginBottom: 10,
+                }}
+              />
+
+              {uploading && <p>Sedang upload gambar...</p>}
+
+              {image && (
+                <div style={{ marginBottom: 10 }}>
+                  <img
+                    src={image}
+                    alt="Preview"
+                    style={{
+                      width: 120,
+                      borderRadius: 8,
+                      display: "block",
+                      marginBottom: 8,
+                    }}
+                  />
+                  <small>Gambar siap dikirim</small>
+                </div>
+              )}
+
+              <button
+                onClick={addTrigger}
+                disabled={uploading}
+                style={{
+                  background: "#00a884",
+                  color: "white",
+                  border: "none",
+                  padding: "12px 18px",
+                  borderRadius: 8,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Simpan
+              </button>
             </div>
           )}
 
-          <button
-            onClick={addTrigger}
-            disabled={uploading}
+          <div
             style={{
-              background: "#00a884",
-              color: "white",
-              border: "none",
-              padding: "12px 18px",
-              borderRadius: 8,
-              fontWeight: "bold",
-              cursor: "pointer",
+              background: "white",
+              borderRadius: 10,
+              padding: 20,
+              overflowX: "auto",
             }}
           >
-            Simpan
-          </button>
-        </div>
-      )}
+            {!selectedFlow && <p>Pilih alur dulu untuk melihat trigger.</p>}
 
-      <div
-        style={{
-          marginTop: 30,
-          background: "white",
-          borderRadius: 10,
-          padding: 20,
-        }}
-      >
-        <table width="100%" cellPadding="15">
-          <thead>
-            <tr>
-              <th align="left">Kata Kunci</th>
-              <th align="left">Respon</th>
-              <th align="left">Gambar</th>
-              <th align="left">Trigger</th>
-              <th align="left">Status</th>
-              <th align="left">Aksi</th>
-            </tr>
-          </thead>
+            {selectedFlow && (
+              <table width="100%" cellPadding="15">
+                <thead>
+                  <tr>
+                    <th align="left">Kata Kunci</th>
+                    <th align="left">Respon</th>
+                    <th align="left">Gambar</th>
+                    <th align="left">Trigger</th>
+                    <th align="left">Status</th>
+                    <th align="left">Aksi</th>
+                  </tr>
+                </thead>
 
-          <tbody>
-            {triggers.map((item) => (
-              <tr key={item.id}>
-                <td>{item.keyword}</td>
+                <tbody>
+                  {triggers.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.keyword}</td>
 
-                <td>{item.response}</td>
+                      <td>{item.response}</td>
 
-                <td>
-                  {item.image ? (
-                    <img
-                      src={item.image}
-                      alt="Trigger"
-                      style={{
-                        width: 70,
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : (
-                    "-"
+                      <td>
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt="Trigger"
+                            style={{
+                              width: 70,
+                              borderRadius: 6,
+                            }}
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+
+                      <td>{item.type}</td>
+
+                      <td>{item.active ? "Aktif" : "Nonaktif"}</td>
+
+                      <td>
+                        <button
+                          onClick={() => toggleStatus(item.id, item.active)}
+                          style={{
+                            marginRight: 10,
+                            padding: "6px 10px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {item.active ? "Matikan" : "Aktifkan"}
+                        </button>
+
+                        <button
+                          onClick={() => deleteTrigger(item.id)}
+                          style={{
+                            background: "red",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 10px",
+                            borderRadius: 5,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {triggers.length === 0 && (
+                    <tr>
+                      <td colSpan="6">Belum ada trigger di alur ini.</td>
+                    </tr>
                   )}
-                </td>
-
-                <td>{item.type}</td>
-
-                <td>{item.active ? "Aktif" : "Nonaktif"}</td>
-
-                <td>
-                  <button
-                    onClick={() => toggleStatus(item.id, item.active)}
-                    style={{
-                      marginRight: 10,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {item.active ? "Matikan" : "Aktifkan"}
-                  </button>
-
-                  <button
-                    onClick={() => deleteTrigger(item.id)}
-                    style={{
-                      background: "red",
-                      color: "white",
-                      border: "none",
-                      padding: "6px 10px",
-                      borderRadius: 5,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Hapus
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
       </div>
     </main>
   );
