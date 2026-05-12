@@ -10,6 +10,9 @@ export default function Home() {
   const [selectedFlow, setSelectedFlow] = useState(null);
   const [newFlowName, setNewFlowName] = useState("");
 
+  const [editingFlowId, setEditingFlowId] = useState(null);
+  const [editingFlowName, setEditingFlowName] = useState("");
+
   const [triggers, setTriggers] = useState([]);
 
   const [keyword, setKeyword] = useState("");
@@ -57,9 +60,61 @@ export default function Home() {
     }
   }
 
+  async function updateFlowName(id) {
+    if (!editingFlowName) {
+      alert("Nama alur tidak boleh kosong");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("flows")
+      .update({
+        name: editingFlowName,
+      })
+      .eq("id", id);
+
+    if (!error) {
+      if (selectedFlow?.id === id) {
+        setSelectedFlow({
+          ...selectedFlow,
+          name: editingFlowName,
+        });
+      }
+
+      setEditingFlowId(null);
+      setEditingFlowName("");
+
+      getFlows();
+    }
+  }
+
+  async function deleteFlow(id) {
+    const confirmDelete = confirm(
+      "Yakin mau hapus alur ini? Semua trigger di alur ini juga akan terhapus."
+    );
+
+    if (!confirmDelete) return;
+
+    await supabase.from("triggers").delete().eq("flow_id", id);
+
+    const { error } = await supabase.from("flows").delete().eq("id", id);
+
+    if (!error) {
+      if (selectedFlow?.id === id) {
+        setSelectedFlow(null);
+        setTriggers([]);
+        setShowForm(false);
+      }
+
+      getFlows();
+    }
+  }
+
   async function selectFlow(flow) {
     setSelectedFlow(flow);
     setShowForm(false);
+    setEditingFlowId(null);
+    setEditingFlowName("");
     getTriggers(flow.id);
   }
 
@@ -333,19 +388,95 @@ export default function Home() {
           {flows.map((flow) => (
             <div
               key={flow.id}
-              onClick={() => selectFlow(flow)}
               style={{
                 padding: 12,
                 borderRadius: 8,
                 marginBottom: 8,
-                cursor: "pointer",
                 background:
                   selectedFlow?.id === flow.id ? "#00a884" : "#f2f2f2",
                 color: selectedFlow?.id === flow.id ? "white" : "black",
-                fontWeight: selectedFlow?.id === flow.id ? "bold" : "normal",
               }}
             >
-              {flow.name}
+              {editingFlowId === flow.id ? (
+                <div>
+                  <input
+                    value={editingFlowName}
+                    onChange={(e) => setEditingFlowName(e.target.value)}
+                    style={{
+                      padding: 8,
+                      width: "100%",
+                      boxSizing: "border-box",
+                      marginBottom: 8,
+                    }}
+                  />
+
+                  <button
+                    onClick={() => updateFlowName(flow.id)}
+                    style={{
+                      marginRight: 6,
+                      padding: "6px 8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Simpan
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setEditingFlowId(null);
+                      setEditingFlowName("");
+                    }}
+                    style={{
+                      padding: "6px 8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Batal
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div
+                    onClick={() => selectFlow(flow)}
+                    style={{
+                      cursor: "pointer",
+                      fontWeight:
+                        selectedFlow?.id === flow.id ? "bold" : "normal",
+                      marginBottom: 10,
+                    }}
+                  >
+                    {flow.name}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setEditingFlowId(flow.id);
+                      setEditingFlowName(flow.name);
+                    }}
+                    style={{
+                      marginRight: 6,
+                      padding: "5px 8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() => deleteFlow(flow.id)}
+                    style={{
+                      background: "red",
+                      color: "white",
+                      border: "none",
+                      padding: "5px 8px",
+                      borderRadius: 5,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
