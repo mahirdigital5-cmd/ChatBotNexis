@@ -36,7 +36,12 @@ export default function Home() {
       const data = await res.json();
 
       setWaStatus(data.connected);
-      setQrData(data.qr);
+
+      if (data.connected) {
+        setQrData(null);
+      } else {
+        setQrData(data.qr);
+      }
     } catch (err) {
       setWaStatus(false);
       setQrData(null);
