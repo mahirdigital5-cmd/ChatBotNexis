@@ -21,6 +21,12 @@ export default function Home() {
   const [image, setImage] = useState("");
   const [isFlowEntry, setIsFlowEntry] = useState(false);
 
+  const [editingTriggerId, setEditingTriggerId] = useState(null);
+  const [editKeyword, setEditKeyword] = useState("");
+  const [editResponse, setEditResponse] = useState("");
+  const [editType, setEditType] = useState("Mengandung");
+  const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
+
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -44,29 +50,23 @@ export default function Home() {
   async function addFlow() {
     if (!newFlowName) return alert("Isi nama alur");
 
-    await supabase.from("flows").insert([
-      {
-        name: newFlowName,
-      },
-    ]);
+    await supabase.from("flows").insert([{ name: newFlowName }]);
 
     setNewFlowName("");
     getFlows();
   }
 
   async function updateFlowName(id) {
-    if (!editingFlowName) return;
+    if (!editingFlowName) return alert("Nama alur tidak boleh kosong");
 
-    await supabase
-      .from("flows")
-      .update({
-        name: editingFlowName,
-      })
-      .eq("id", id);
+    await supabase.from("flows").update({ name: editingFlowName }).eq("id", id);
+
+    if (selectedFlow?.id === id) {
+      setSelectedFlow({ ...selectedFlow, name: editingFlowName });
+    }
 
     setEditingFlowId(null);
     setEditingFlowName("");
-
     getFlows();
   }
 
@@ -78,7 +78,6 @@ export default function Home() {
     if (!ok) return;
 
     await supabase.from("triggers").delete().eq("flow_id", id);
-
     await supabase.from("flows").delete().eq("id", id);
 
     if (selectedFlow?.id === id) {
@@ -91,6 +90,8 @@ export default function Home() {
 
   async function selectFlow(flow) {
     setSelectedFlow(flow);
+    setShowForm(false);
+    setEditingTriggerId(null);
     getTriggers(flow.id);
   }
 
@@ -131,7 +132,6 @@ export default function Home() {
 
   async function logoutWa() {
     const ok = confirm("Logout WhatsApp?");
-
     if (!ok) return;
 
     await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`);
@@ -176,12 +176,10 @@ export default function Home() {
   }
 
   async function addTrigger() {
-    if (!selectedFlow) {
-      return alert("Pilih alur dulu");
-    }
+    if (!selectedFlow) return alert("Pilih alur dulu");
 
     if (!keyword || (!response && !image)) {
-      return alert("Isi keyword dan respon");
+      return alert("Isi keyword dan respon/gambar");
     }
 
     await supabase.from("triggers").insert([
@@ -206,18 +204,48 @@ export default function Home() {
     getTriggers(selectedFlow.id);
   }
 
-  async function toggleStatus(id, current) {
+  function startEditTrigger(item) {
+    setEditingTriggerId(item.id);
+    setEditKeyword(item.keyword || "");
+    setEditResponse(item.response || "");
+    setEditType(item.type || "Mengandung");
+    setEditIsFlowEntry(item.is_flow_entry === true);
+  }
+
+  async function saveEditTrigger(id) {
+    if (!editKeyword || !editResponse) {
+      return alert("Keyword dan respon tidak boleh kosong");
+    }
+
     await supabase
       .from("triggers")
       .update({
-        active: !current,
+        keyword: editKeyword,
+        response: editResponse,
+        type: editType,
+        is_flow_entry: editIsFlowEntry,
       })
       .eq("id", id);
+
+    setEditingTriggerId(null);
+    setEditKeyword("");
+    setEditResponse("");
+    setEditType("Mengandung");
+    setEditIsFlowEntry(false);
+
+    getTriggers();
+  }
+
+  async function toggleStatus(id, current) {
+    await supabase.from("triggers").update({ active: !current }).eq("id", id);
 
     getTriggers();
   }
 
   async function deleteTrigger(id) {
+    const ok = confirm("Yakin hapus trigger ini?");
+    if (!ok) return;
+
     await supabase.from("triggers").delete().eq("id", id);
 
     getTriggers();
@@ -322,6 +350,7 @@ export default function Home() {
               padding: 10,
               width: "100%",
               marginBottom: 10,
+              boxSizing: "border-box",
             }}
           />
 
@@ -335,6 +364,7 @@ export default function Home() {
               padding: 10,
               borderRadius: 8,
               marginBottom: 15,
+              cursor: "pointer",
             }}
           >
             + Tambah Alur
@@ -361,11 +391,24 @@ export default function Home() {
                       width: "100%",
                       padding: 8,
                       marginBottom: 8,
+                      boxSizing: "border-box",
                     }}
                   />
 
-                  <button onClick={() => updateFlowName(flow.id)}>
+                  <button
+                    onClick={() => updateFlowName(flow.id)}
+                    style={{ marginRight: 5 }}
+                  >
                     Simpan
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setEditingFlowId(null);
+                      setEditingFlowName("");
+                    }}
+                  >
+                    Batal
                   </button>
                 </>
               ) : (
@@ -375,6 +418,8 @@ export default function Home() {
                     style={{
                       cursor: "pointer",
                       marginBottom: 10,
+                      fontWeight:
+                        selectedFlow?.id === flow.id ? "bold" : "normal",
                     }}
                   >
                     {flow.name}
@@ -385,9 +430,7 @@ export default function Home() {
                       setEditingFlowId(flow.id);
                       setEditingFlowName(flow.name);
                     }}
-                    style={{
-                      marginRight: 5,
-                    }}
+                    style={{ marginRight: 5 }}
                   >
                     Edit
                   </button>
@@ -426,12 +469,14 @@ export default function Home() {
 
             <button
               onClick={() => setShowForm(!showForm)}
+              disabled={!selectedFlow}
               style={{
-                background: "#00a884",
+                background: selectedFlow ? "#00a884" : "#999",
                 color: "white",
                 border: "none",
                 padding: "10px 15px",
                 borderRadius: 8,
+                cursor: selectedFlow ? "pointer" : "not-allowed",
               }}
             >
               + Tambah Trigger
@@ -457,6 +502,7 @@ export default function Home() {
                   padding: 12,
                   marginBottom: 10,
                   width: "100%",
+                  boxSizing: "border-box",
                 }}
               />
 
@@ -469,6 +515,7 @@ export default function Home() {
                   marginBottom: 10,
                   width: "100%",
                   minHeight: 120,
+                  boxSizing: "border-box",
                 }}
               />
 
@@ -501,10 +548,7 @@ export default function Home() {
                 accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files[0];
-
-                  if (file) {
-                    uploadImage(file);
-                  }
+                  if (file) uploadImage(file);
                 }}
               />
 
@@ -533,6 +577,7 @@ export default function Home() {
                   padding: "12px 18px",
                   borderRadius: 8,
                   fontWeight: "bold",
+                  cursor: "pointer",
                 }}
               >
                 Simpan Trigger
@@ -545,6 +590,7 @@ export default function Home() {
               background: "white",
               borderRadius: 10,
               padding: 20,
+              overflowX: "auto",
             }}
           >
             <table width="100%" cellPadding="15">
@@ -552,7 +598,7 @@ export default function Home() {
                 <tr>
                   <th align="left">Keyword</th>
                   <th align="left">Respon</th>
-                  <th align="left">Flow Entry</th>
+                  <th align="left">Trigger</th>
                   <th align="left">Status</th>
                   <th align="left">Aksi</th>
                 </tr>
@@ -561,43 +607,119 @@ export default function Home() {
               <tbody>
                 {triggers.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.keyword}</td>
+                    {editingTriggerId === item.id ? (
+                      <>
+                        <td>
+                          <input
+                            value={editKeyword}
+                            onChange={(e) => setEditKeyword(e.target.value)}
+                            style={{ padding: 8, width: "100%" }}
+                          />
+                        </td>
 
-                    <td>{item.response}</td>
+                        <td>
+                          <textarea
+                            value={editResponse}
+                            onChange={(e) => setEditResponse(e.target.value)}
+                            style={{
+                              padding: 8,
+                              width: "100%",
+                              minHeight: 80,
+                            }}
+                          />
+                        </td>
 
-                    <td>
-                      {item.is_flow_entry ? "YA" : "-"}
-                    </td>
+                        <td>
+                          <select
+                            value={editType}
+                            onChange={(e) => setEditType(e.target.value)}
+                            style={{ padding: 8, marginBottom: 8 }}
+                          >
+                            <option>Mengandung</option>
+                            <option>Sama Persis</option>
+                          </select>
 
-                    <td>
-                      {item.active ? "Aktif" : "Nonaktif"}
-                    </td>
+                          <br />
 
-                    <td>
-                      <button
-                        onClick={() =>
-                          toggleStatus(item.id, item.active)
-                        }
-                        style={{
-                          marginRight: 10,
-                        }}
-                      >
-                        {item.active ? "Matikan" : "Aktifkan"}
-                      </button>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={editIsFlowEntry}
+                              onChange={(e) =>
+                                setEditIsFlowEntry(e.target.checked)
+                              }
+                            />{" "}
+                            Masuk/Pindah Alur
+                          </label>
+                        </td>
 
-                      <button
-                        onClick={() => deleteTrigger(item.id)}
-                        style={{
-                          background: "red",
-                          color: "white",
-                          border: "none",
-                        }}
-                      >
-                        Hapus
-                      </button>
-                    </td>
+                        <td>{item.active ? "Aktif" : "Nonaktif"}</td>
+
+                        <td>
+                          <button
+                            onClick={() => saveEditTrigger(item.id)}
+                            style={{ marginRight: 8 }}
+                          >
+                            Simpan
+                          </button>
+
+                          <button
+                            onClick={() => setEditingTriggerId(null)}
+                          >
+                            Batal
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td>{item.keyword}</td>
+
+                        <td>{item.response}</td>
+
+                        <td>
+                          {item.is_flow_entry
+                            ? "Masuk/Pindah Alur"
+                            : item.type}
+                        </td>
+
+                        <td>{item.active ? "Aktif" : "Nonaktif"}</td>
+
+                        <td>
+                          <button
+                            onClick={() => startEditTrigger(item)}
+                            style={{ marginRight: 8 }}
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            onClick={() => toggleStatus(item.id, item.active)}
+                            style={{ marginRight: 8 }}
+                          >
+                            {item.active ? "Matikan" : "Aktifkan"}
+                          </button>
+
+                          <button
+                            onClick={() => deleteTrigger(item.id)}
+                            style={{
+                              background: "red",
+                              color: "white",
+                              border: "none",
+                            }}
+                          >
+                            Hapus
+                          </button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
+
+                {triggers.length === 0 && (
+                  <tr>
+                    <td colSpan="5">Belum ada trigger.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
