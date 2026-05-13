@@ -19,6 +19,7 @@ export default function Home() {
   const [response, setResponse] = useState("");
   const [type, setType] = useState("Mengandung");
   const [image, setImage] = useState("");
+  const [isFlowEntry, setIsFlowEntry] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -27,109 +28,82 @@ export default function Home() {
   const [qrData, setQrData] = useState(null);
 
   async function getFlows() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("flows")
       .select("*")
       .order("id", { ascending: false });
 
-    if (!error) {
-      setFlows(data || []);
+    setFlows(data || []);
 
-      if (!selectedFlow && data && data.length > 0) {
-        setSelectedFlow(data[0]);
-        getTriggers(data[0].id);
-      }
+    if (!selectedFlow && data?.length > 0) {
+      setSelectedFlow(data[0]);
+      getTriggers(data[0].id);
     }
   }
 
   async function addFlow() {
-    if (!newFlowName) {
-      alert("Isi nama alur dulu");
-      return;
-    }
+    if (!newFlowName) return alert("Isi nama alur");
 
-    const { error } = await supabase.from("flows").insert([
+    await supabase.from("flows").insert([
       {
         name: newFlowName,
       },
     ]);
 
-    if (!error) {
-      setNewFlowName("");
-      getFlows();
-    }
+    setNewFlowName("");
+    getFlows();
   }
 
   async function updateFlowName(id) {
-    if (!editingFlowName) {
-      alert("Nama alur tidak boleh kosong");
-      return;
-    }
+    if (!editingFlowName) return;
 
-    const { error } = await supabase
+    await supabase
       .from("flows")
       .update({
         name: editingFlowName,
       })
       .eq("id", id);
 
-    if (!error) {
-      if (selectedFlow?.id === id) {
-        setSelectedFlow({
-          ...selectedFlow,
-          name: editingFlowName,
-        });
-      }
+    setEditingFlowId(null);
+    setEditingFlowName("");
 
-      setEditingFlowId(null);
-      setEditingFlowName("");
-
-      getFlows();
-    }
+    getFlows();
   }
 
   async function deleteFlow(id) {
-    const confirmDelete = confirm(
-      "Yakin mau hapus alur ini? Semua trigger di alur ini juga akan terhapus."
+    const ok = confirm(
+      "Yakin hapus alur? Semua trigger di alur ini ikut terhapus."
     );
 
-    if (!confirmDelete) return;
+    if (!ok) return;
 
     await supabase.from("triggers").delete().eq("flow_id", id);
 
-    const { error } = await supabase.from("flows").delete().eq("id", id);
+    await supabase.from("flows").delete().eq("id", id);
 
-    if (!error) {
-      if (selectedFlow?.id === id) {
-        setSelectedFlow(null);
-        setTriggers([]);
-        setShowForm(false);
-      }
-
-      getFlows();
+    if (selectedFlow?.id === id) {
+      setSelectedFlow(null);
+      setTriggers([]);
     }
+
+    getFlows();
   }
 
   async function selectFlow(flow) {
     setSelectedFlow(flow);
-    setShowForm(false);
-    setEditingFlowId(null);
-    setEditingFlowName("");
     getTriggers(flow.id);
   }
 
   async function getTriggers(flowId = selectedFlow?.id) {
     if (!flowId) return;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("triggers")
       .select("*")
       .eq("flow_id", flowId)
       .order("id", { ascending: false });
 
-    if (!error) {
-      setTriggers(data || []);
-    }
+    setTriggers(data || []);
   }
 
   async function getWaStatus() {
@@ -144,7 +118,7 @@ export default function Home() {
       } else {
         setQrData(data.qr);
       }
-    } catch (err) {
+    } catch {
       setWaStatus(false);
       setQrData(null);
     }
@@ -156,8 +130,9 @@ export default function Home() {
   }
 
   async function logoutWa() {
-    const confirmLogout = confirm("Yakin mau logout WhatsApp?");
-    if (!confirmLogout) return;
+    const ok = confirm("Logout WhatsApp?");
+
+    if (!ok) return;
 
     await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`);
     setTimeout(getWaStatus, 2000);
@@ -192,9 +167,6 @@ export default function Home() {
 
       if (data.success) {
         setImage(data.image);
-        alert("Gambar berhasil diupload");
-      } else {
-        alert("Upload gambar gagal");
       }
 
       setUploading(false);
@@ -205,16 +177,14 @@ export default function Home() {
 
   async function addTrigger() {
     if (!selectedFlow) {
-      alert("Pilih alur dulu");
-      return;
+      return alert("Pilih alur dulu");
     }
 
     if (!keyword || (!response && !image)) {
-      alert("Isi kata kunci dan minimal respon atau gambar");
-      return;
+      return alert("Isi keyword dan respon");
     }
 
-    const { error } = await supabase.from("triggers").insert([
+    await supabase.from("triggers").insert([
       {
         flow_id: selectedFlow.id,
         keyword,
@@ -222,18 +192,18 @@ export default function Home() {
         type,
         image,
         active: true,
+        is_flow_entry: isFlowEntry,
       },
     ]);
 
-    if (!error) {
-      setKeyword("");
-      setResponse("");
-      setType("Mengandung");
-      setImage("");
-      setShowForm(false);
+    setKeyword("");
+    setResponse("");
+    setType("Mengandung");
+    setImage("");
+    setIsFlowEntry(false);
+    setShowForm(false);
 
-      getTriggers(selectedFlow.id);
-    }
+    getTriggers(selectedFlow.id);
   }
 
   async function toggleStatus(id, current) {
@@ -282,54 +252,46 @@ export default function Home() {
           </b>
         </p>
 
-        <div style={{ marginTop: 15 }}>
-          {!waStatus && (
-            <button
-              onClick={connectWa}
-              style={{
-                background: "#00a884",
-                color: "white",
-                border: "none",
-                padding: "10px 15px",
-                borderRadius: 8,
-                fontWeight: "bold",
-                cursor: "pointer",
-                marginRight: 10,
-              }}
-            >
-              Hubungkan WA
-            </button>
-          )}
-
-          {waStatus && (
-            <button
-              onClick={logoutWa}
-              style={{
-                background: "red",
-                color: "white",
-                border: "none",
-                padding: "10px 15px",
-                borderRadius: 8,
-                fontWeight: "bold",
-                cursor: "pointer",
-              }}
-            >
-              Logout WA
-            </button>
-          )}
-        </div>
+        {!waStatus ? (
+          <button
+            onClick={connectWa}
+            style={{
+              background: "#00a884",
+              color: "white",
+              border: "none",
+              padding: "10px 15px",
+              borderRadius: 8,
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            Hubungkan WA
+          </button>
+        ) : (
+          <button
+            onClick={logoutWa}
+            style={{
+              background: "red",
+              color: "white",
+              border: "none",
+              padding: "10px 15px",
+              borderRadius: 8,
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            Logout WA
+          </button>
+        )}
 
         {!waStatus && qrData && (
           <div style={{ marginTop: 20 }}>
-            <p>Scan QR ini dari WhatsApp:</p>
-
             <img
               src={qrData}
-              alt="QR WhatsApp"
+              alt="QR"
               style={{
                 width: 250,
                 borderRadius: 10,
-                border: "1px solid #ddd",
               }}
             />
           </div>
@@ -341,107 +303,77 @@ export default function Home() {
           display: "grid",
           gridTemplateColumns: "280px 1fr",
           gap: 20,
-          alignItems: "start",
         }}
       >
         <div
           style={{
             background: "white",
-            borderRadius: 10,
             padding: 20,
+            borderRadius: 10,
           }}
         >
           <h3>Daftar Alur</h3>
 
-          <div style={{ marginBottom: 15 }}>
-            <input
-              value={newFlowName}
-              onChange={(e) => setNewFlowName(e.target.value)}
-              placeholder="Nama alur baru"
-              style={{
-                padding: 10,
-                width: "100%",
-                boxSizing: "border-box",
-                marginBottom: 10,
-              }}
-            />
+          <input
+            value={newFlowName}
+            onChange={(e) => setNewFlowName(e.target.value)}
+            placeholder="Nama alur"
+            style={{
+              padding: 10,
+              width: "100%",
+              marginBottom: 10,
+            }}
+          />
 
-            <button
-              onClick={addFlow}
-              style={{
-                background: "#00a884",
-                color: "white",
-                border: "none",
-                padding: "10px 12px",
-                borderRadius: 8,
-                fontWeight: "bold",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              + Tambah Alur
-            </button>
-          </div>
-
-          {flows.length === 0 && <p>Belum ada alur.</p>}
+          <button
+            onClick={addFlow}
+            style={{
+              width: "100%",
+              background: "#00a884",
+              color: "white",
+              border: "none",
+              padding: 10,
+              borderRadius: 8,
+              marginBottom: 15,
+            }}
+          >
+            + Tambah Alur
+          </button>
 
           {flows.map((flow) => (
             <div
               key={flow.id}
               style={{
-                padding: 12,
-                borderRadius: 8,
-                marginBottom: 8,
                 background:
                   selectedFlow?.id === flow.id ? "#00a884" : "#f2f2f2",
                 color: selectedFlow?.id === flow.id ? "white" : "black",
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 10,
               }}
             >
               {editingFlowId === flow.id ? (
-                <div>
+                <>
                   <input
                     value={editingFlowName}
                     onChange={(e) => setEditingFlowName(e.target.value)}
                     style={{
-                      padding: 8,
                       width: "100%",
-                      boxSizing: "border-box",
+                      padding: 8,
                       marginBottom: 8,
                     }}
                   />
 
-                  <button
-                    onClick={() => updateFlowName(flow.id)}
-                    style={{
-                      marginRight: 6,
-                      padding: "6px 8px",
-                      cursor: "pointer",
-                    }}
-                  >
+                  <button onClick={() => updateFlowName(flow.id)}>
                     Simpan
                   </button>
-
-                  <button
-                    onClick={() => {
-                      setEditingFlowId(null);
-                      setEditingFlowName("");
-                    }}
-                    style={{
-                      padding: "6px 8px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Batal
-                  </button>
-                </div>
+                </>
               ) : (
-                <div>
+                <>
                   <div
                     onClick={() => selectFlow(flow)}
                     style={{
                       cursor: "pointer",
-                      fontWeight:
-                        selectedFlow?.id === flow.id ? "bold" : "normal",
                       marginBottom: 10,
                     }}
                   >
@@ -454,9 +386,7 @@ export default function Home() {
                       setEditingFlowName(flow.name);
                     }}
                     style={{
-                      marginRight: 6,
-                      padding: "5px 8px",
-                      cursor: "pointer",
+                      marginRight: 5,
                     }}
                   >
                     Edit
@@ -468,14 +398,11 @@ export default function Home() {
                       background: "red",
                       color: "white",
                       border: "none",
-                      padding: "5px 8px",
-                      borderRadius: 5,
-                      cursor: "pointer",
                     }}
                   >
                     Hapus
                   </button>
-                </div>
+                </>
               )}
             </div>
           ))}
@@ -485,70 +412,63 @@ export default function Home() {
           <div
             style={{
               background: "white",
-              borderRadius: 10,
               padding: 20,
+              borderRadius: 10,
               marginBottom: 20,
             }}
           >
             <h3>
               Trigger Alur:{" "}
               <span style={{ color: "#00a884" }}>
-                {selectedFlow ? selectedFlow.name : "Belum pilih alur"}
+                {selectedFlow?.name || "-"}
               </span>
             </h3>
 
             <button
               onClick={() => setShowForm(!showForm)}
-              disabled={!selectedFlow}
               style={{
-                background: selectedFlow ? "#00a884" : "#999",
+                background: "#00a884",
                 color: "white",
                 border: "none",
-                padding: "12px 18px",
+                padding: "10px 15px",
                 borderRadius: 8,
-                fontWeight: "bold",
-                marginTop: 10,
-                cursor: selectedFlow ? "pointer" : "not-allowed",
               }}
             >
               + Tambah Trigger
             </button>
           </div>
 
-          {showForm && selectedFlow && (
+          {showForm && (
             <div
               style={{
-                marginBottom: 20,
                 background: "white",
                 padding: 20,
                 borderRadius: 10,
+                marginBottom: 20,
               }}
             >
-              <h3>Tambah Trigger Baru</h3>
-
-              <p>
-                Alur: <b>{selectedFlow.name}</b>
-              </p>
+              <h3>Tambah Trigger</h3>
 
               <input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Kata kunci"
+                placeholder="Keyword"
                 style={{
                   padding: 12,
-                  marginRight: 10,
                   marginBottom: 10,
+                  width: "100%",
                 }}
               />
 
-              <input
+              <textarea
                 value={response}
                 onChange={(e) => setResponse(e.target.value)}
-                placeholder="Respon otomatis / caption"
+                placeholder="Respon"
                 style={{
                   padding: 12,
-                  marginRight: 10,
                   marginBottom: 10,
+                  width: "100%",
+                  minHeight: 120,
                 }}
               />
 
@@ -557,60 +477,65 @@ export default function Home() {
                 onChange={(e) => setType(e.target.value)}
                 style={{
                   padding: 12,
-                  marginRight: 10,
                   marginBottom: 10,
+                  width: "100%",
                 }}
               >
                 <option>Mengandung</option>
                 <option>Sama Persis</option>
               </select>
 
+              <div style={{ marginBottom: 15 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={isFlowEntry}
+                    onChange={(e) => setIsFlowEntry(e.target.checked)}
+                  />{" "}
+                  Jadikan trigger masuk/pindah alur
+                </label>
+              </div>
+
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files[0];
-                  if (file) uploadImage(file);
-                }}
-                style={{
-                  padding: 12,
-                  marginRight: 10,
-                  marginBottom: 10,
+
+                  if (file) {
+                    uploadImage(file);
+                  }
                 }}
               />
 
-              {uploading && <p>Sedang upload gambar...</p>}
+              {uploading && <p>Upload gambar...</p>}
 
               {image && (
-                <div style={{ marginBottom: 10 }}>
+                <div style={{ marginTop: 10 }}>
                   <img
                     src={image}
                     alt="Preview"
                     style={{
                       width: 120,
                       borderRadius: 8,
-                      display: "block",
-                      marginBottom: 8,
                     }}
                   />
-                  <small>Gambar siap dikirim</small>
                 </div>
               )}
 
               <button
                 onClick={addTrigger}
-                disabled={uploading}
                 style={{
+                  marginTop: 15,
                   background: "#00a884",
                   color: "white",
                   border: "none",
                   padding: "12px 18px",
                   borderRadius: 8,
                   fontWeight: "bold",
-                  cursor: "pointer",
                 }}
               >
-                Simpan
+                Simpan Trigger
               </button>
             </div>
           )}
@@ -620,87 +545,61 @@ export default function Home() {
               background: "white",
               borderRadius: 10,
               padding: 20,
-              overflowX: "auto",
             }}
           >
-            {!selectedFlow && <p>Pilih alur dulu untuk melihat trigger.</p>}
+            <table width="100%" cellPadding="15">
+              <thead>
+                <tr>
+                  <th align="left">Keyword</th>
+                  <th align="left">Respon</th>
+                  <th align="left">Flow Entry</th>
+                  <th align="left">Status</th>
+                  <th align="left">Aksi</th>
+                </tr>
+              </thead>
 
-            {selectedFlow && (
-              <table width="100%" cellPadding="15">
-                <thead>
-                  <tr>
-                    <th align="left">Kata Kunci</th>
-                    <th align="left">Respon</th>
-                    <th align="left">Gambar</th>
-                    <th align="left">Trigger</th>
-                    <th align="left">Status</th>
-                    <th align="left">Aksi</th>
+              <tbody>
+                {triggers.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.keyword}</td>
+
+                    <td>{item.response}</td>
+
+                    <td>
+                      {item.is_flow_entry ? "YA" : "-"}
+                    </td>
+
+                    <td>
+                      {item.active ? "Aktif" : "Nonaktif"}
+                    </td>
+
+                    <td>
+                      <button
+                        onClick={() =>
+                          toggleStatus(item.id, item.active)
+                        }
+                        style={{
+                          marginRight: 10,
+                        }}
+                      >
+                        {item.active ? "Matikan" : "Aktifkan"}
+                      </button>
+
+                      <button
+                        onClick={() => deleteTrigger(item.id)}
+                        style={{
+                          background: "red",
+                          color: "white",
+                          border: "none",
+                        }}
+                      >
+                        Hapus
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-
-                <tbody>
-                  {triggers.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.keyword}</td>
-
-                      <td>{item.response}</td>
-
-                      <td>
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt="Trigger"
-                            style={{
-                              width: 70,
-                              borderRadius: 6,
-                            }}
-                          />
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-
-                      <td>{item.type}</td>
-
-                      <td>{item.active ? "Aktif" : "Nonaktif"}</td>
-
-                      <td>
-                        <button
-                          onClick={() => toggleStatus(item.id, item.active)}
-                          style={{
-                            marginRight: 10,
-                            padding: "6px 10px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          {item.active ? "Matikan" : "Aktifkan"}
-                        </button>
-
-                        <button
-                          onClick={() => deleteTrigger(item.id)}
-                          style={{
-                            background: "red",
-                            color: "white",
-                            border: "none",
-                            padding: "6px 10px",
-                            borderRadius: 5,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Hapus
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {triggers.length === 0 && (
-                    <tr>
-                      <td colSpan="6">Belum ada trigger di alur ini.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
