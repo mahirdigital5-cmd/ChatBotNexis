@@ -26,6 +26,8 @@ export default function Home() {
   const [editResponse, setEditResponse] = useState("");
   const [editType, setEditType] = useState("Mengandung");
   const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
+  const [editImage, setEditImage] = useState("");
+  const [editUploading, setEditUploading] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -175,6 +177,34 @@ export default function Home() {
     reader.readAsDataURL(file);
   }
 
+  async function uploadEditImage(file) {
+    setEditUploading(true);
+
+    const reader = new FileReader();
+
+    reader.onloadend = async () => {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: reader.result,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setEditImage(data.image);
+      }
+
+      setEditUploading(false);
+    };
+
+    reader.readAsDataURL(file);
+  }
+
   async function addTrigger() {
     if (!selectedFlow) return alert("Pilih alur dulu");
 
@@ -210,11 +240,12 @@ export default function Home() {
     setEditResponse(item.response || "");
     setEditType(item.type || "Mengandung");
     setEditIsFlowEntry(item.is_flow_entry === true);
+    setEditImage(item.image || "");
   }
 
   async function saveEditTrigger(id) {
-    if (!editKeyword || !editResponse) {
-      return alert("Keyword dan respon tidak boleh kosong");
+    if (!editKeyword || (!editResponse && !editImage)) {
+      return alert("Keyword dan respon/gambar tidak boleh kosong");
     }
 
     await supabase
@@ -223,6 +254,7 @@ export default function Home() {
         keyword: editKeyword,
         response: editResponse,
         type: editType,
+        image: editImage,
         is_flow_entry: editIsFlowEntry,
       })
       .eq("id", id);
@@ -232,6 +264,8 @@ export default function Home() {
     setEditResponse("");
     setEditType("Mengandung");
     setEditIsFlowEntry(false);
+    setEditImage("");
+    setEditUploading(false);
 
     getTriggers();
   }
@@ -651,6 +685,48 @@ export default function Home() {
                             />{" "}
                             Masuk/Pindah Alur
                           </label>
+
+                          <div style={{ marginTop: 10 }}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) uploadEditImage(file);
+                              }}
+                            />
+
+                            {editUploading && <p>Upload gambar...</p>}
+
+                            {editImage && (
+                              <div style={{ marginTop: 8 }}>
+                                <img
+                                  src={editImage}
+                                  alt="Edit Preview"
+                                  style={{
+                                    width: 100,
+                                    borderRadius: 8,
+                                    display: "block",
+                                    marginBottom: 6,
+                                  }}
+                                />
+
+                                <button
+                                  onClick={() => setEditImage("")}
+                                  style={{
+                                    background: "red",
+                                    color: "white",
+                                    border: "none",
+                                    padding: "5px 8px",
+                                    borderRadius: 5,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Hapus Gambar
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
 
                         <td>{item.active ? "Aktif" : "Nonaktif"}</td>
@@ -663,9 +739,7 @@ export default function Home() {
                             Simpan
                           </button>
 
-                          <button
-                            onClick={() => setEditingTriggerId(null)}
-                          >
+                          <button onClick={() => setEditingTriggerId(null)}>
                             Batal
                           </button>
                         </td>
