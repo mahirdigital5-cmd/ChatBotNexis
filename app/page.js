@@ -19,6 +19,7 @@ export default function Home() {
   const [response, setResponse] = useState("");
   const [type, setType] = useState("Mengandung");
   const [image, setImage] = useState("");
+  const [media, setMedia] = useState([]);
   const [isFlowEntry, setIsFlowEntry] = useState(false);
 
   const [editingTriggerId, setEditingTriggerId] = useState(null);
@@ -27,6 +28,7 @@ export default function Home() {
   const [editType, setEditType] = useState("Mengandung");
   const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
   const [editImage, setEditImage] = useState("");
+  const [editMedia, setEditMedia] = useState([]);
   const [editUploading, setEditUploading] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
@@ -34,6 +36,32 @@ export default function Home() {
 
   const [waStatus, setWaStatus] = useState(null);
   const [qrData, setQrData] = useState(null);
+
+  function getMediaFromItem(item) {
+    if (Array.isArray(item?.media)) {
+      return item.media.filter((m) => m?.url);
+    }
+
+    if (typeof item?.media === "string") {
+      try {
+        const parsed = JSON.parse(item.media);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((m) => m?.url);
+        }
+      } catch {}
+    }
+
+    if (item?.image) {
+      return [
+        {
+          type: "image",
+          url: item.image,
+        },
+      ];
+    }
+
+    return [];
+  }
 
   async function getFlows() {
     const { data } = await supabase
@@ -149,26 +177,42 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  async function uploadImage(file) {
+  async function uploadMedia(file) {
     setUploading(true);
 
     const reader = new FileReader();
 
     reader.onloadend = async () => {
+      const mediaType = file.type.startsWith("video/") ? "video" : "image";
+
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          file: reader.result,
           image: reader.result,
+          type: mediaType,
         }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        setImage(data.image);
+        const url = data.url || data.image;
+
+        setMedia((prev) => [
+          ...prev,
+          {
+            type: data.type || mediaType,
+            url,
+          },
+        ]);
+
+        if (mediaType === "image" && !image) {
+          setImage(url);
+        }
       }
 
       setUploading(false);
@@ -177,26 +221,42 @@ export default function Home() {
     reader.readAsDataURL(file);
   }
 
-  async function uploadEditImage(file) {
+  async function uploadEditMedia(file) {
     setEditUploading(true);
 
     const reader = new FileReader();
 
     reader.onloadend = async () => {
+      const mediaType = file.type.startsWith("video/") ? "video" : "image";
+
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          file: reader.result,
           image: reader.result,
+          type: mediaType,
         }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        setEditImage(data.image);
+        const url = data.url || data.image;
+
+        setEditMedia((prev) => [
+          ...prev,
+          {
+            type: data.type || mediaType,
+            url,
+          },
+        ]);
+
+        if (mediaType === "image" && !editImage) {
+          setEditImage(url);
+        }
       }
 
       setEditUploading(false);
@@ -205,12 +265,30 @@ export default function Home() {
     reader.readAsDataURL(file);
   }
 
+  function removeMedia(index) {
+    const updated = media.filter((_, i) => i !== index);
+    setMedia(updated);
+
+    const firstImage = updated.find((m) => m.type === "image");
+    setImage(firstImage?.url || "");
+  }
+
+  function removeEditMedia(index) {
+    const updated = editMedia.filter((_, i) => i !== index);
+    setEditMedia(updated);
+
+    const firstImage = updated.find((m) => m.type === "image");
+    setEditImage(firstImage?.url || "");
+  }
+
   async function addTrigger() {
     if (!selectedFlow) return alert("Pilih alur dulu");
 
-    if (!keyword || (!response && !image)) {
-      return alert("Isi keyword dan respon/gambar");
+    if (!keyword || (!response && media.length === 0)) {
+      return alert("Isi keyword dan respon/foto/video");
     }
+
+    const firstImage = media.find((m) => m.type === "image");
 
     await supabase.from("triggers").insert([
       {
@@ -218,7 +296,8 @@ export default function Home() {
         keyword,
         response,
         type,
-        image,
+        image: firstImage?.url || "",
+        media,
         active: true,
         is_flow_entry: isFlowEntry,
       },
@@ -228,6 +307,7 @@ export default function Home() {
     setResponse("");
     setType("Mengandung");
     setImage("");
+    setMedia([]);
     setIsFlowEntry(false);
     setShowForm(false);
 
@@ -235,18 +315,24 @@ export default function Home() {
   }
 
   function startEditTrigger(item) {
+    const itemMedia = getMediaFromItem(item);
+    const firstImage = itemMedia.find((m) => m.type === "image");
+
     setEditingTriggerId(item.id);
     setEditKeyword(item.keyword || "");
     setEditResponse(item.response || "");
     setEditType(item.type || "Mengandung");
     setEditIsFlowEntry(item.is_flow_entry === true);
-    setEditImage(item.image || "");
+    setEditMedia(itemMedia);
+    setEditImage(firstImage?.url || item.image || "");
   }
 
   async function saveEditTrigger(id) {
-    if (!editKeyword || (!editResponse && !editImage)) {
-      return alert("Keyword dan respon/gambar tidak boleh kosong");
+    if (!editKeyword || (!editResponse && editMedia.length === 0)) {
+      return alert("Keyword dan respon/foto/video tidak boleh kosong");
     }
+
+    const firstImage = editMedia.find((m) => m.type === "image");
 
     await supabase
       .from("triggers")
@@ -254,7 +340,8 @@ export default function Home() {
         keyword: editKeyword,
         response: editResponse,
         type: editType,
-        image: editImage,
+        image: firstImage?.url || "",
+        media: editMedia,
         is_flow_entry: editIsFlowEntry,
       })
       .eq("id", id);
@@ -265,6 +352,7 @@ export default function Home() {
     setEditType("Mengandung");
     setEditIsFlowEntry(false);
     setEditImage("");
+    setEditMedia([]);
     setEditUploading(false);
 
     getTriggers();
@@ -579,25 +667,60 @@ export default function Home() {
 
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
+                multiple
                 onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) uploadImage(file);
+                  const files = Array.from(e.target.files || []);
+                  files.forEach((file) => uploadMedia(file));
+                  e.target.value = "";
                 }}
               />
 
-              {uploading && <p>Upload gambar...</p>}
+              {uploading && <p>Upload media...</p>}
 
-              {image && (
-                <div style={{ marginTop: 10 }}>
-                  <img
-                    src={image}
-                    alt="Preview"
-                    style={{
-                      width: 120,
-                      borderRadius: 8,
-                    }}
-                  />
+              {media.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {media.map((item, index) => (
+                    <div key={index}>
+                      {item.type === "video" ? (
+                        <video
+                          src={item.url}
+                          controls
+                          style={{
+                            width: 120,
+                            borderRadius: 8,
+                            display: "block",
+                            marginBottom: 6,
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={item.url}
+                          alt="Preview"
+                          style={{
+                            width: 120,
+                            borderRadius: 8,
+                            display: "block",
+                            marginBottom: 6,
+                          }}
+                        />
+                      )}
+
+                      <button
+                        onClick={() => removeMedia(index)}
+                        style={{
+                          background: "red",
+                          color: "white",
+                          border: "none",
+                          padding: "5px 8px",
+                          borderRadius: 5,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -689,41 +812,67 @@ export default function Home() {
                           <div style={{ marginTop: 10 }}>
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/*,video/*"
+                              multiple
                               onChange={(e) => {
-                                const file = e.target.files[0];
-                                if (file) uploadEditImage(file);
+                                const files = Array.from(e.target.files || []);
+                                files.forEach((file) => uploadEditMedia(file));
+                                e.target.value = "";
                               }}
                             />
 
-                            {editUploading && <p>Upload gambar...</p>}
+                            {editUploading && <p>Upload media...</p>}
 
-                            {editImage && (
-                              <div style={{ marginTop: 8 }}>
-                                <img
-                                  src={editImage}
-                                  alt="Edit Preview"
-                                  style={{
-                                    width: 100,
-                                    borderRadius: 8,
-                                    display: "block",
-                                    marginBottom: 6,
-                                  }}
-                                />
+                            {editMedia.length > 0 && (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  display: "flex",
+                                  gap: 10,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                {editMedia.map((item, index) => (
+                                  <div key={index}>
+                                    {item.type === "video" ? (
+                                      <video
+                                        src={item.url}
+                                        controls
+                                        style={{
+                                          width: 100,
+                                          borderRadius: 8,
+                                          display: "block",
+                                          marginBottom: 6,
+                                        }}
+                                      />
+                                    ) : (
+                                      <img
+                                        src={item.url}
+                                        alt="Edit Preview"
+                                        style={{
+                                          width: 100,
+                                          borderRadius: 8,
+                                          display: "block",
+                                          marginBottom: 6,
+                                        }}
+                                      />
+                                    )}
 
-                                <button
-                                  onClick={() => setEditImage("")}
-                                  style={{
-                                    background: "red",
-                                    color: "white",
-                                    border: "none",
-                                    padding: "5px 8px",
-                                    borderRadius: 5,
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Hapus Gambar
-                                </button>
+                                    <button
+                                      onClick={() => removeEditMedia(index)}
+                                      style={{
+                                        background: "red",
+                                        color: "white",
+                                        border: "none",
+                                        padding: "5px 8px",
+                                        borderRadius: 5,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      Hapus
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -739,7 +888,14 @@ export default function Home() {
                             Simpan
                           </button>
 
-                          <button onClick={() => setEditingTriggerId(null)}>
+                          <button
+                            onClick={() => {
+                              setEditingTriggerId(null);
+                              setEditMedia([]);
+                              setEditImage("");
+                              setEditUploading(false);
+                            }}
+                          >
                             Batal
                           </button>
                         </td>
