@@ -7,44 +7,57 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req) {
   try {
-    const body = await req.json();
+    const formData = await req.formData();
 
-    const file = body.file || body.image;
+    const file = formData.get("file");
 
     if (!file) {
-      return NextResponse.json({
-        success: false,
-        message: "File tidak ditemukan",
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          message: "File tidak ditemukan",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    const isVideo =
-      body.type === "video" ||
-      String(file).startsWith("data:video/");
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    const uploaded = await cloudinary.uploader.upload(file, {
+    const mimeType = file.type || "";
+
+    const isVideo = mimeType.startsWith("video/");
+
+    const base64 = `data:${mimeType};base64,${buffer.toString("base64")}`;
+
+    const uploaded = await cloudinary.uploader.upload(base64, {
       folder: "chatbotnexis",
       resource_type: isVideo ? "video" : "image",
     });
 
     return NextResponse.json({
       success: true,
-
-      // format baru
       url: uploaded.secure_url,
       type: isVideo ? "video" : "image",
-
-      // support code lama
       image: uploaded.secure_url,
     });
   } catch (err) {
-    console.log(err);
+    console.log("UPLOAD ERROR:", err);
 
-    return NextResponse.json({
-      success: false,
-      message: err?.message || "Upload gagal",
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        message: err?.message || "Upload gagal",
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }
