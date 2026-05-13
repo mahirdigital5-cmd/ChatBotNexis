@@ -11,12 +11,32 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    const uploaded = await cloudinary.uploader.upload(body.image, {
+    const file = body.file || body.image;
+
+    if (!file) {
+      return NextResponse.json({
+        success: false,
+        message: "File tidak ditemukan",
+      });
+    }
+
+    const isVideo =
+      body.type === "video" ||
+      String(file).startsWith("data:video/");
+
+    const uploaded = await cloudinary.uploader.upload(file, {
       folder: "chatbotnexis",
+      resource_type: isVideo ? "video" : "image",
     });
 
     return NextResponse.json({
       success: true,
+
+      // format baru
+      url: uploaded.secure_url,
+      type: isVideo ? "video" : "image",
+
+      // support code lama
       image: uploaded.secure_url,
     });
   } catch (err) {
@@ -24,6 +44,7 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: false,
+      message: err?.message || "Upload gagal",
     });
   }
 }
