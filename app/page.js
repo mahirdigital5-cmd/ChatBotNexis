@@ -29,10 +29,13 @@ export default function Home() {
   const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
   const [editImage, setEditImage] = useState("");
   const [editMedia, setEditMedia] = useState([]);
-  const [editUploading, setEditUploading] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [editUploadingCount, setEditUploadingCount] = useState(0);
+
+  const uploading = uploadingCount > 0;
+  const editUploading = editUploadingCount > 0;
 
   const [waStatus, setWaStatus] = useState(null);
   const [qrData, setQrData] = useState(null);
@@ -178,91 +181,125 @@ export default function Home() {
   }, []);
 
   async function uploadMedia(file) {
-    setUploading(true);
+    setUploadingCount((prev) => prev + 1);
 
-    const reader = new FileReader();
-
-    reader.onloadend = async () => {
+    try {
       const mediaType = file.type.startsWith("video/") ? "video" : "image";
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          file: reader.result,
-          image: reader.result,
-          type: mediaType,
-        }),
-      });
+      const reader = new FileReader();
 
-      const data = await res.json();
+      reader.onloadend = async () => {
+        try {
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              file: reader.result,
+              image: reader.result,
+              type: mediaType,
+            }),
+          });
 
-      if (data.success) {
-        const url = data.url || data.image;
+          const data = await res.json();
 
-        setMedia((prev) => [
-          ...prev,
-          {
-            type: data.type || mediaType,
-            url,
-          },
-        ]);
+          if (!data.success) {
+            alert(data.message || "Upload gagal");
+            return;
+          }
 
-        if (mediaType === "image" && !image) {
-          setImage(url);
+          const url = data.url || data.image;
+
+          setMedia((prev) => [
+            ...prev,
+            {
+              type: data.type || mediaType,
+              url,
+            },
+          ]);
+
+          if (mediaType === "image" && !image) {
+            setImage(url);
+          }
+        } catch (err) {
+          alert("Upload gagal: " + err.message);
+        } finally {
+          setUploadingCount((prev) => Math.max(prev - 1, 0));
         }
-      }
+      };
 
-      setUploading(false);
-    };
+      reader.onerror = () => {
+        alert("Gagal membaca file");
+        setUploadingCount((prev) => Math.max(prev - 1, 0));
+      };
 
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    } catch (err) {
+      alert("Upload gagal: " + err.message);
+      setUploadingCount((prev) => Math.max(prev - 1, 0));
+    }
   }
 
   async function uploadEditMedia(file) {
-    setEditUploading(true);
+    setEditUploadingCount((prev) => prev + 1);
 
-    const reader = new FileReader();
-
-    reader.onloadend = async () => {
+    try {
       const mediaType = file.type.startsWith("video/") ? "video" : "image";
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          file: reader.result,
-          image: reader.result,
-          type: mediaType,
-        }),
-      });
+      const reader = new FileReader();
 
-      const data = await res.json();
+      reader.onloadend = async () => {
+        try {
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              file: reader.result,
+              image: reader.result,
+              type: mediaType,
+            }),
+          });
 
-      if (data.success) {
-        const url = data.url || data.image;
+          const data = await res.json();
 
-        setEditMedia((prev) => [
-          ...prev,
-          {
-            type: data.type || mediaType,
-            url,
-          },
-        ]);
+          if (!data.success) {
+            alert(data.message || "Upload gagal");
+            return;
+          }
 
-        if (mediaType === "image" && !editImage) {
-          setEditImage(url);
+          const url = data.url || data.image;
+
+          setEditMedia((prev) => [
+            ...prev,
+            {
+              type: data.type || mediaType,
+              url,
+            },
+          ]);
+
+          if (mediaType === "image" && !editImage) {
+            setEditImage(url);
+          }
+        } catch (err) {
+          alert("Upload gagal: " + err.message);
+        } finally {
+          setEditUploadingCount((prev) => Math.max(prev - 1, 0));
         }
-      }
+      };
 
-      setEditUploading(false);
-    };
+      reader.onerror = () => {
+        alert("Gagal membaca file");
+        setEditUploadingCount((prev) => Math.max(prev - 1, 0));
+      };
 
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    } catch (err) {
+      alert("Upload gagal: " + err.message);
+      setEditUploadingCount((prev) => Math.max(prev - 1, 0));
+    }
   }
 
   function removeMedia(index) {
@@ -283,6 +320,8 @@ export default function Home() {
 
   async function addTrigger() {
     if (!selectedFlow) return alert("Pilih alur dulu");
+
+    if (uploading) return alert("Tunggu upload media selesai dulu");
 
     if (!keyword || (!response && media.length === 0)) {
       return alert("Isi keyword dan respon/foto/video");
@@ -310,6 +349,7 @@ export default function Home() {
     setMedia([]);
     setIsFlowEntry(false);
     setShowForm(false);
+    setUploadingCount(0);
 
     getTriggers(selectedFlow.id);
   }
@@ -325,9 +365,12 @@ export default function Home() {
     setEditIsFlowEntry(item.is_flow_entry === true);
     setEditMedia(itemMedia);
     setEditImage(firstImage?.url || item.image || "");
+    setEditUploadingCount(0);
   }
 
   async function saveEditTrigger(id) {
+    if (editUploading) return alert("Tunggu upload media selesai dulu");
+
     if (!editKeyword || (!editResponse && editMedia.length === 0)) {
       return alert("Keyword dan respon/foto/video tidak boleh kosong");
     }
@@ -353,7 +396,7 @@ export default function Home() {
     setEditIsFlowEntry(false);
     setEditImage("");
     setEditMedia([]);
-    setEditUploading(false);
+    setEditUploadingCount(0);
 
     getTriggers();
   }
@@ -676,10 +719,17 @@ export default function Home() {
                 }}
               />
 
-              {uploading && <p>Upload media...</p>}
+              {uploading && <p>Upload media... ({uploadingCount})</p>}
 
               {media.length > 0 && (
-                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
                   {media.map((item, index) => (
                     <div key={index}>
                       {item.type === "video" ? (
@@ -688,273 +738,4 @@ export default function Home() {
                           controls
                           style={{
                             width: 120,
-                            borderRadius: 8,
-                            display: "block",
-                            marginBottom: 6,
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src={item.url}
-                          alt="Preview"
-                          style={{
-                            width: 120,
-                            borderRadius: 8,
-                            display: "block",
-                            marginBottom: 6,
-                          }}
-                        />
-                      )}
-
-                      <button
-                        onClick={() => removeMedia(index)}
-                        style={{
-                          background: "red",
-                          color: "white",
-                          border: "none",
-                          padding: "5px 8px",
-                          borderRadius: 5,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <button
-                onClick={addTrigger}
-                style={{
-                  marginTop: 15,
-                  background: "#00a884",
-                  color: "white",
-                  border: "none",
-                  padding: "12px 18px",
-                  borderRadius: 8,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Simpan Trigger
-              </button>
-            </div>
-          )}
-
-          <div
-            style={{
-              background: "white",
-              borderRadius: 10,
-              padding: 20,
-              overflowX: "auto",
-            }}
-          >
-            <table width="100%" cellPadding="15">
-              <thead>
-                <tr>
-                  <th align="left">Keyword</th>
-                  <th align="left">Respon</th>
-                  <th align="left">Trigger</th>
-                  <th align="left">Status</th>
-                  <th align="left">Aksi</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {triggers.map((item) => (
-                  <tr key={item.id}>
-                    {editingTriggerId === item.id ? (
-                      <>
-                        <td>
-                          <input
-                            value={editKeyword}
-                            onChange={(e) => setEditKeyword(e.target.value)}
-                            style={{ padding: 8, width: "100%" }}
-                          />
-                        </td>
-
-                        <td>
-                          <textarea
-                            value={editResponse}
-                            onChange={(e) => setEditResponse(e.target.value)}
-                            style={{
-                              padding: 8,
-                              width: "100%",
-                              minHeight: 80,
-                            }}
-                          />
-                        </td>
-
-                        <td>
-                          <select
-                            value={editType}
-                            onChange={(e) => setEditType(e.target.value)}
-                            style={{ padding: 8, marginBottom: 8 }}
-                          >
-                            <option>Mengandung</option>
-                            <option>Sama Persis</option>
-                          </select>
-
-                          <br />
-
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={editIsFlowEntry}
-                              onChange={(e) =>
-                                setEditIsFlowEntry(e.target.checked)
-                              }
-                            />{" "}
-                            Masuk/Pindah Alur
-                          </label>
-
-                          <div style={{ marginTop: 10 }}>
-                            <input
-                              type="file"
-                              accept="image/*,video/*"
-                              multiple
-                              onChange={(e) => {
-                                const files = Array.from(e.target.files || []);
-                                files.forEach((file) => uploadEditMedia(file));
-                                e.target.value = "";
-                              }}
-                            />
-
-                            {editUploading && <p>Upload media...</p>}
-
-                            {editMedia.length > 0 && (
-                              <div
-                                style={{
-                                  marginTop: 8,
-                                  display: "flex",
-                                  gap: 10,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                {editMedia.map((item, index) => (
-                                  <div key={index}>
-                                    {item.type === "video" ? (
-                                      <video
-                                        src={item.url}
-                                        controls
-                                        style={{
-                                          width: 100,
-                                          borderRadius: 8,
-                                          display: "block",
-                                          marginBottom: 6,
-                                        }}
-                                      />
-                                    ) : (
-                                      <img
-                                        src={item.url}
-                                        alt="Edit Preview"
-                                        style={{
-                                          width: 100,
-                                          borderRadius: 8,
-                                          display: "block",
-                                          marginBottom: 6,
-                                        }}
-                                      />
-                                    )}
-
-                                    <button
-                                      onClick={() => removeEditMedia(index)}
-                                      style={{
-                                        background: "red",
-                                        color: "white",
-                                        border: "none",
-                                        padding: "5px 8px",
-                                        borderRadius: 5,
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      Hapus
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        <td>{item.active ? "Aktif" : "Nonaktif"}</td>
-
-                        <td>
-                          <button
-                            onClick={() => saveEditTrigger(item.id)}
-                            style={{ marginRight: 8 }}
-                          >
-                            Simpan
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setEditingTriggerId(null);
-                              setEditMedia([]);
-                              setEditImage("");
-                              setEditUploading(false);
-                            }}
-                          >
-                            Batal
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{item.keyword}</td>
-
-                        <td>{item.response}</td>
-
-                        <td>
-                          {item.is_flow_entry
-                            ? "Masuk/Pindah Alur"
-                            : item.type}
-                        </td>
-
-                        <td>{item.active ? "Aktif" : "Nonaktif"}</td>
-
-                        <td>
-                          <button
-                            onClick={() => startEditTrigger(item)}
-                            style={{ marginRight: 8 }}
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            onClick={() => toggleStatus(item.id, item.active)}
-                            style={{ marginRight: 8 }}
-                          >
-                            {item.active ? "Matikan" : "Aktifkan"}
-                          </button>
-
-                          <button
-                            onClick={() => deleteTrigger(item.id)}
-                            style={{
-                              background: "red",
-                              color: "white",
-                              border: "none",
-                            }}
-                          >
-                            Hapus
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-
-                {triggers.length === 0 && (
-                  <tr>
-                    <td colSpan="5">Belum ada trigger.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
+                            border
