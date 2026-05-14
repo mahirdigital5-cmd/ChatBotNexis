@@ -91,6 +91,26 @@ export default function Home() {
     return [];
   }
 
+  function getMediaSummary(item) {
+    const list = getMediaFromItem(item);
+    const imageCount = list.filter((m) => m.type !== "video").length;
+    const videoCount = list.filter((m) => m.type === "video").length;
+
+    if (imageCount > 0 && videoCount > 0) {
+      return `${imageCount} foto · ${videoCount} video`;
+    }
+
+    if (imageCount > 0) {
+      return `${imageCount} foto`;
+    }
+
+    if (videoCount > 0) {
+      return `${videoCount} video`;
+    }
+
+    return "Tanpa media";
+  }
+
   async function getFlows() {
     const { data } = await supabase
       .from("flows")
@@ -496,11 +516,27 @@ export default function Home() {
       justifyContent: "space-between",
       alignItems: "center",
       gap: 18,
+      background:
+        "linear-gradient(135deg, rgba(255,255,255,0.07), rgba(0,255,157,0.045))",
     },
     title: {
-      fontSize: 34,
-      letterSpacing: -1,
-      marginBottom: 8,
+      fontSize: 22,
+      letterSpacing: -0.4,
+      marginBottom: 6,
+      color: "#d1d5db",
+      fontWeight: 700,
+    },
+    heroBrand: {
+      fontSize: 58,
+      lineHeight: 0.95,
+      letterSpacing: -3,
+      fontWeight: 950,
+      marginBottom: 10,
+      background:
+        "linear-gradient(135deg, #ffffff 10%, #00ff9d 52%, #6fffd0 92%)",
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent",
+      textShadow: "0 0 34px rgba(0,255,157,0.18)",
     },
     cardGrid: {
       display: "grid",
@@ -563,9 +599,11 @@ export default function Home() {
           <div style={styles.brand}>
             <div style={styles.logo}>N</div>
             <div>
-              <h2 style={{ fontSize: 20, lineHeight: 1 }}>ChatBotNexis</h2>
-              <p style={{ ...styles.muted, fontSize: 13, marginTop: 6 }}>
-                Luxury WA Automation
+              <h2 style={{ fontSize: 22, lineHeight: 1, letterSpacing: -0.6 }}>
+                NEXIS
+              </h2>
+              <p style={{ ...styles.muted, fontSize: 12, marginTop: 6 }}>
+                WhatsApp Automation Suite
               </p>
             </div>
           </div>
@@ -776,18 +814,19 @@ export default function Home() {
               <p
                 style={{
                   color: "#00ff9d",
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: 900,
-                  letterSpacing: 1.4,
-                  marginBottom: 8,
+                  letterSpacing: 1.8,
+                  marginBottom: 10,
                 }}
               >
-                AI AUTOMATION COMMAND CENTER
+                DARK LUXURY AUTOMATION
               </p>
-              <h1 style={styles.title}>WA Auto Reply Trigger</h1>
-              <p style={styles.muted}>
-                Kelola flow, keyword, multi jawaban, foto, dan video dalam satu
-                dashboard premium.
+              <div style={styles.heroBrand}>NEXIS</div>
+              <h1 style={styles.title}>WA Automation Command Center</h1>
+              <p style={{ ...styles.muted, maxWidth: 620, lineHeight: 1.7 }}>
+                Dashboard premium untuk flow, trigger, multi-reply, dan media
+                WhatsApp automation.
               </p>
             </div>
 
@@ -840,7 +879,14 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="glass-card" style={styles.section}>
+          <div
+            className="glass-card"
+            style={{
+              ...styles.section,
+              background:
+                "linear-gradient(135deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025))",
+            }}
+          >
             <div
               style={{
                 display: "flex",
@@ -850,10 +896,13 @@ export default function Home() {
               }}
             >
               <div>
-                <p style={styles.muted}>Trigger Alur</p>
-                <h2 style={{ marginTop: 6 }}>
+                <p style={styles.muted}>Selected Flow</p>
+                <h2 style={{ marginTop: 6, letterSpacing: -0.4 }}>
                   {selectedFlow?.name || "Pilih alur terlebih dahulu"}
                 </h2>
+                <p style={{ ...styles.muted, marginTop: 8, fontSize: 14 }}>
+                  Minimal, rapi, dan fokus ke automation yang benar-benar aktif.
+                </p>
               </div>
 
               <span
@@ -864,7 +913,7 @@ export default function Home() {
                   border: "1px solid rgba(0,255,157,0.2)",
                 }}
               >
-                ● {selectedFlow ? "Selected" : "No Flow"}
+                ● {selectedFlow ? "LIVE FLOW" : "NO FLOW"}
               </span>
             </div>
           </div>
@@ -1105,9 +1154,9 @@ export default function Home() {
               }}
             >
               <div>
-                <h2>Trigger Library</h2>
+                <h2 style={{ letterSpacing: -0.5 }}>Trigger Library</h2>
                 <p style={{ ...styles.muted, marginTop: 6 }}>
-                  Semua automation di alur terpilih.
+                  Preview balasan dan media langsung terlihat tanpa perlu edit.
                 </p>
               </div>
             </div>
@@ -1118,6 +1167,7 @@ export default function Home() {
                   <tr>
                     <th>Keyword</th>
                     <th>Respon</th>
+                    <th>Media</th>
                     <th>Trigger</th>
                     <th>Status</th>
                     <th>Aksi</th>
@@ -1186,6 +1236,57 @@ export default function Home() {
                             >
                               + Tambah Jawaban
                             </button>
+                          </td>
+
+                          <td style={{ minWidth: 210 }}>
+                            <div
+                              style={{
+                                display: "grid",
+                                gap: 10,
+                                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                              }}
+                            >
+                              {editMedia.length > 0 ? (
+                                editMedia.slice(0, 4).map((mediaItem, mediaIndex) => (
+                                  <div
+                                    key={mediaIndex}
+                                    style={{
+                                      borderRadius: 16,
+                                      overflow: "hidden",
+                                      background: "rgba(255,255,255,0.06)",
+                                      border: "1px solid rgba(255,255,255,0.08)",
+                                      minHeight: 86,
+                                    }}
+                                  >
+                                    {mediaItem.type === "video" ? (
+                                      <video
+                                        src={mediaItem.url}
+                                        controls
+                                        style={{
+                                          width: "100%",
+                                          height: 86,
+                                          objectFit: "cover",
+                                          display: "block",
+                                        }}
+                                      />
+                                    ) : (
+                                      <img
+                                        src={mediaItem.url}
+                                        alt="Media Preview"
+                                        style={{
+                                          width: "100%",
+                                          height: 86,
+                                          objectFit: "cover",
+                                          display: "block",
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <span style={styles.muted}>Belum ada media</span>
+                              )}
+                            </div>
                           </td>
 
                           <td style={{ minWidth: 230 }}>
@@ -1375,6 +1476,122 @@ export default function Home() {
                             </div>
                           </td>
 
+                          <td style={{ minWidth: 210 }}>
+                            {getMediaFromItem(item).length > 0 ? (
+                              <div>
+                                <div
+                                  style={{
+                                    display: "grid",
+                                    gridTemplateColumns:
+                                      getMediaFromItem(item).length === 1
+                                        ? "1fr"
+                                        : "repeat(2, minmax(0, 1fr))",
+                                    gap: 8,
+                                    maxWidth: 220,
+                                  }}
+                                >
+                                  {getMediaFromItem(item)
+                                    .slice(0, 4)
+                                    .map((mediaItem, mediaIndex) => (
+                                      <div
+                                        key={mediaIndex}
+                                        style={{
+                                          position: "relative",
+                                          borderRadius: 16,
+                                          overflow: "hidden",
+                                          background: "rgba(255,255,255,0.06)",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.08)",
+                                          height:
+                                            getMediaFromItem(item).length === 1
+                                              ? 126
+                                              : 82,
+                                        }}
+                                      >
+                                        {mediaItem.type === "video" ? (
+                                          <>
+                                            <video
+                                              src={mediaItem.url}
+                                              muted
+                                              style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "cover",
+                                                display: "block",
+                                              }}
+                                            />
+                                            <span
+                                              style={{
+                                                position: "absolute",
+                                                left: 8,
+                                                bottom: 8,
+                                                padding: "4px 8px",
+                                                borderRadius: 999,
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                background:
+                                                  "rgba(0,0,0,0.58)",
+                                                color: "white",
+                                              }}
+                                            >
+                                              VIDEO
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <img
+                                            src={mediaItem.url}
+                                            alt="Media Preview"
+                                            style={{
+                                              width: "100%",
+                                              height: "100%",
+                                              objectFit: "cover",
+                                              display: "block",
+                                            }}
+                                          />
+                                        )}
+
+                                        {mediaIndex === 3 &&
+                                          getMediaFromItem(item).length > 4 && (
+                                            <div
+                                              style={{
+                                                position: "absolute",
+                                                inset: 0,
+                                                display: "grid",
+                                                placeItems: "center",
+                                                background:
+                                                  "rgba(0,0,0,0.55)",
+                                                fontWeight: 900,
+                                              }}
+                                            >
+                                              +{getMediaFromItem(item).length - 4}
+                                            </div>
+                                          )}
+                                      </div>
+                                    ))}
+                                </div>
+                                <p
+                                  style={{
+                                    ...styles.muted,
+                                    marginTop: 8,
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  {getMediaSummary(item)}
+                                </p>
+                              </div>
+                            ) : (
+                              <span
+                                style={{
+                                  ...styles.pill,
+                                  background: "rgba(255,255,255,0.055)",
+                                  color: "#9ca3af",
+                                }}
+                              >
+                                Tanpa media
+                              </span>
+                            )}
+                          </td>
+
                           <td>
                             <span
                               style={{
@@ -1454,7 +1671,7 @@ export default function Home() {
 
                   {triggers.length === 0 && (
                     <tr>
-                      <td colSpan="5" style={{ color: "#9ca3af" }}>
+                      <td colSpan="6" style={{ color: "#9ca3af" }}>
                         Belum ada trigger di alur ini.
                       </td>
                     </tr>
