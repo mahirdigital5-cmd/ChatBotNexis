@@ -1,6 +1,8 @@
+import "./globals.css";
+
 export const metadata = {
   title: "ChatBotNexis",
-  description: "WA Auto Reply Bot",
+  description: "Luxury WhatsApp Automation Platform",
 };
 
 export default function RootLayout({ children }) {
