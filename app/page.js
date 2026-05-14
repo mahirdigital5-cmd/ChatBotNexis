@@ -159,11 +159,36 @@ export default function Home() {
   }
 
   async function deleteFlow(id) {
-    const ok = confirm("Yakin hapus alur? Semua trigger di alur ini ikut terhapus.");
-    if (!ok) return;
+  const ok = confirm(
+    "Yakin hapus alur? Semua trigger di alur ini ikut terhapus."
+  );
 
-    await supabase.from("triggers").delete().eq("flow_id", id);
-    await supabase.from("flows").delete().eq("id", id);
+  if (!ok) return;
+
+  try {
+    const triggerDelete = await supabase
+      .from("triggers")
+      .delete()
+      .eq("flow_id", id);
+
+    console.log("DELETE TRIGGER:", triggerDelete);
+
+    const flowDelete = await supabase
+      .from("flows")
+      .delete()
+      .eq("id", id);
+
+    console.log("DELETE FLOW:", flowDelete);
+
+    if (triggerDelete.error) {
+      alert(triggerDelete.error.message);
+      return;
+    }
+
+    if (flowDelete.error) {
+      alert(flowDelete.error.message);
+      return;
+    }
 
     if (selectedFlow?.id === id) {
       setSelectedFlow(null);
@@ -174,7 +199,11 @@ export default function Home() {
     }
 
     refreshAll();
+  } catch (err) {
+    console.log(err);
+    alert(err.message);
   }
+}
 
   function selectFlow(flow) {
     setSelectedFlow(flow);
