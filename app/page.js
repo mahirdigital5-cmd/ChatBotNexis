@@ -701,10 +701,10 @@ export default function Home() {
   function DevicePage() {
     return (
       <>
-        <Header
-          title="Perangkat"
-          description="Kelola koneksi WhatsApp, aktifkan/nonaktifkan device, dan tampilkan QR untuk scan."
-        />
+        {Header({
+          title: "Perangkat",
+          description: "Kelola koneksi WhatsApp, aktifkan/nonaktifkan device, dan tampilkan QR untuk scan.",
+        })}
 
         <div
           style={{
@@ -951,7 +951,7 @@ export default function Home() {
 
         {showCreateForm && selectedFlow?.id === flow.id && (
           <div style={{ marginBottom: 18 }}>
-            <CreateTriggerBox />
+            {CreateTriggerBox()}
           </div>
         )}
 
@@ -1114,7 +1114,7 @@ export default function Home() {
               </p>
             )}
 
-            {media.length > 0 && <MediaGrid items={media} onRemove={removeMedia} />}
+            {media.length > 0 && MediaGrid({ items: media, onRemove: removeMedia })}
           </div>
         </div>
 
@@ -1394,7 +1394,7 @@ export default function Home() {
           )}
         </div>
 
-        <MediaPreview item={item} />
+        {MediaPreview({ item })}
 
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 16 }}>
           <button
@@ -1617,7 +1617,7 @@ export default function Home() {
               </p>
             )}
 
-            {editMedia.length > 0 && <MediaGrid items={editMedia} onRemove={removeEditMedia} />}
+            {editMedia.length > 0 && MediaGrid({ items: editMedia, onRemove: removeEditMedia })}
           </div>
         </div>
 
@@ -1660,10 +1660,10 @@ export default function Home() {
 
       return (
         <>
-          <Header
-            title={templateSelectedFlow.name}
-            description="Detail alur yang berisi semua trigger, jawaban, dan media yang sudah dibuat."
-          />
+          {Header({
+            title: templateSelectedFlow.name,
+            description: "Detail alur yang berisi semua trigger, jawaban, dan media yang sudah dibuat.",
+          })}
 
           <div className="glass-card" style={styles.section}>
             <div
@@ -1772,13 +1772,13 @@ export default function Home() {
 
           {showCreateForm && selectedFlow?.id === templateSelectedFlow.id && (
             <div className="glass-card" style={styles.section}>
-              <CreateTriggerBox />
+              {CreateTriggerBox()}
             </div>
           )}
 
           <div style={{ display: "grid", gap: 14 }}>
             {flowTriggers.map((trigger) => (
-              <TriggerCard key={trigger.id} item={trigger} />
+              <div key={trigger.id}>{TriggerCard({ item: trigger })}</div>
             ))}
 
             {flowTriggers.length === 0 && (
@@ -1795,10 +1795,10 @@ export default function Home() {
 
     return (
       <>
-        <Header
-          title="Template"
-          description="Pilih alur untuk melihat trigger di dalamnya."
-        />
+        {Header({
+          title: "Template",
+          description: "Pilih alur untuk melihat trigger di dalamnya.",
+        })}
 
         <div className="glass-card" style={styles.section}>
           <div
@@ -2034,8 +2034,8 @@ export default function Home() {
             </div>
           </div>
 
-          <SidebarButton id="perangkat" label="Perangkat" icon="●" />
-          <SidebarButton id="template" label="Template" icon="▦" />
+          {SidebarButton({ id: "perangkat", label: "Perangkat", icon: "●" })}
+          {SidebarButton({ id: "template", label: "Template", icon: "▦" })}
 
           <div
             style={{
@@ -2056,7 +2056,7 @@ export default function Home() {
         </aside>
 
         <section>
-          {activeMenu === "perangkat" ? <DevicePage /> : <TemplatePage />}
+          {activeMenu === "perangkat" ? DevicePage() : TemplatePage()}
         </section>
       </div>
 
