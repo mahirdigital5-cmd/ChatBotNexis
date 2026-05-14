@@ -17,6 +17,7 @@ export default function Home() {
 
   const [keyword, setKeyword] = useState("");
   const [response, setResponse] = useState("");
+  const [responseList, setResponseList] = useState([""]);
   const [type, setType] = useState("Mengandung");
   const [image, setImage] = useState("");
   const [media, setMedia] = useState([]);
@@ -25,6 +26,7 @@ export default function Home() {
   const [editingTriggerId, setEditingTriggerId] = useState(null);
   const [editKeyword, setEditKeyword] = useState("");
   const [editResponse, setEditResponse] = useState("");
+  const [editResponseList, setEditResponseList] = useState([""]);
   const [editType, setEditType] = useState("Mengandung");
   const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
   const [editImage, setEditImage] = useState("");
@@ -40,6 +42,18 @@ export default function Home() {
   const [waStatus, setWaStatus] = useState(null);
   const [qrData, setQrData] = useState(null);
 
+  function joinResponses(list) {
+  return list.map((item) => item.trim()).filter(Boolean).join("\n");
+}
+
+function splitResponses(value) {
+  const result = String(value || "")
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return result.length > 0 ? result : [""];
+}
   function getMediaFromItem(item) {
     if (Array.isArray(item?.media)) {
       return item.media.filter((m) => m?.url);
@@ -285,9 +299,11 @@ export default function Home() {
       return alert("Tunggu upload selesai dulu");
     }
 
-    if (!keyword || (!response && media.length === 0)) {
-      return alert("Isi keyword dan respon/foto/video");
-    }
+    const finalResponse = joinResponses(responseList);
+
+if (!keyword || (!finalResponse && media.length === 0)) {
+  return alert("Isi keyword dan respon/foto/video");
+}
 
     const firstImage = media.find((m) => m.type === "image");
 
@@ -295,7 +311,7 @@ export default function Home() {
       {
         flow_id: selectedFlow.id,
         keyword,
-        response,
+        response: finalResponse,
         type,
         image: firstImage?.url || "",
         media,
@@ -306,6 +322,7 @@ export default function Home() {
 
     setKeyword("");
     setResponse("");
+    setResponseList([""]);
     setType("Mengandung");
     setImage("");
     setMedia([]);
@@ -323,6 +340,7 @@ export default function Home() {
     setEditingTriggerId(item.id);
     setEditKeyword(item.keyword || "");
     setEditResponse(item.response || "");
+    setEditResponseList(splitResponses(item.response));
     setEditType(item.type || "Mengandung");
     setEditIsFlowEntry(item.is_flow_entry === true);
     setEditMedia(itemMedia);
@@ -334,9 +352,11 @@ export default function Home() {
       return alert("Tunggu upload selesai dulu");
     }
 
-    if (!editKeyword || (!editResponse && editMedia.length === 0)) {
-      return alert("Keyword dan respon/foto/video tidak boleh kosong");
-    }
+    const finalEditResponse = joinResponses(editResponseList);
+
+if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
+  return alert("Keyword dan respon/foto/video tidak boleh kosong");
+}
 
     const firstImage = editMedia.find((m) => m.type === "image");
 
@@ -344,7 +364,7 @@ export default function Home() {
       .from("triggers")
       .update({
         keyword: editKeyword,
-        response: editResponse,
+        response: finalEditResponse,
         type: editType,
         image: firstImage?.url || "",
         media: editMedia,
@@ -355,6 +375,7 @@ export default function Home() {
     setEditingTriggerId(null);
     setEditKeyword("");
     setEditResponse("");
+    setEditResponseList([""]);
     setEditType("Mengandung");
     setEditIsFlowEntry(false);
     setEditImage("");
@@ -634,18 +655,62 @@ export default function Home() {
                 }}
               />
 
-              <textarea
-                value={response}
-                onChange={(e) => setResponse(e.target.value)}
-                placeholder="Respon"
-                style={{
-                  padding: 12,
-                  marginBottom: 10,
-                  width: "100%",
-                  minHeight: 120,
-                  boxSizing: "border-box",
-                }}
-              />
+              {responseList.map((item, index) => (
+  <div key={index} style={{ marginBottom: 10 }}>
+    <textarea
+      value={item}
+      onChange={(e) => {
+        const updated = [...responseList];
+        updated[index] = e.target.value;
+        setResponseList(updated);
+        setResponse(joinResponses(updated));
+      }}
+      placeholder={`Jawaban ${index + 1}`}
+      style={{
+        padding: 12,
+        width: "100%",
+        minHeight: 90,
+        boxSizing: "border-box",
+      }}
+    />
+
+    {responseList.length > 1 && (
+      <button
+        onClick={() => {
+          const updated = responseList.filter((_, i) => i !== index);
+          setResponseList(updated);
+          setResponse(joinResponses(updated));
+        }}
+        style={{
+          marginTop: 5,
+          background: "red",
+          color: "white",
+          border: "none",
+          padding: "6px 10px",
+          borderRadius: 6,
+          cursor: "pointer",
+        }}
+      >
+        Hapus Jawaban
+      </button>
+    )}
+  </div>
+))}
+
+<button
+  onClick={() => setResponseList([...responseList, ""])}
+  style={{
+    marginBottom: 10,
+    background: "#333",
+    color: "white",
+    border: "none",
+    padding: "8px 12px",
+    borderRadius: 8,
+    cursor: "pointer",
+  }}
+>
+  + Tambah Jawaban
+</button>
 
               <select
                 value={type}
@@ -791,15 +856,60 @@ export default function Home() {
                         </td>
 
                         <td>
-                          <textarea
-                            value={editResponse}
-                            onChange={(e) => setEditResponse(e.target.value)}
-                            style={{
-                              padding: 8,
-                              width: "100%",
-                              minHeight: 80,
-                            }}
-                          />
+                          {editResponseList.map((item, index) => (
+  <div key={index} style={{ marginBottom: 8 }}>
+    <textarea
+      value={item}
+      onChange={(e) => {
+        const updated = [...editResponseList];
+        updated[index] = e.target.value;
+        setEditResponseList(updated);
+        setEditResponse(joinResponses(updated));
+      }}
+      placeholder={`Jawaban ${index + 1}`}
+      style={{
+        padding: 8,
+        width: "100%",
+        minHeight: 70,
+      }}
+    />
+
+    {editResponseList.length > 1 && (
+      <button
+        onClick={() => {
+          const updated = editResponseList.filter((_, i) => i !== index);
+          setEditResponseList(updated);
+          setEditResponse(joinResponses(updated));
+        }}
+        style={{
+          marginTop: 5,
+          background: "red",
+          color: "white",
+          border: "none",
+          padding: "5px 8px",
+          borderRadius: 5,
+          cursor: "pointer",
+        }}
+      >
+        Hapus
+      </button>
+    )}
+  </div>
+))}
+
+<button
+  onClick={() => setEditResponseList([...editResponseList, ""])}
+  style={{
+    background: "#333",
+    color: "white",
+    border: "none",
+    padding: "6px 10px",
+    borderRadius: 6,
+    cursor: "pointer",
+  }}
+>
+  + Tambah Jawaban
+</button>
                         </td>
 
                         <td>
