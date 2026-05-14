@@ -1764,7 +1764,7 @@ export default function Home() {
       <>
         <Header
           title="Template"
-          description="Pilih salah satu alur terlebih dahulu untuk melihat trigger di dalamnya."
+          description="Pilih alur untuk melihat trigger di dalamnya."
         />
 
         <div className="glass-card" style={styles.section}>
@@ -1772,9 +1772,9 @@ export default function Home() {
             style={{
               display: "grid",
               gridTemplateColumns: "1fr auto",
-              gap: 14,
+              gap: 12,
               alignItems: "end",
-              marginBottom: 22,
+              marginBottom: 18,
             }}
           >
             <div>
@@ -1788,129 +1788,173 @@ export default function Home() {
             </div>
 
             <button onClick={addFlow} className="green-btn" style={styles.button}>
-              + Tambah Alur
+              + Tambah
             </button>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: 12,
-            }}
-          >
-            <MiniStat label="Total Alur" value={flows.length} />
-            <MiniStat label="Total Trigger" value={allTriggers.length} />
-            <MiniStat label="Aktif" value={totalActiveTriggers} />
-            <MiniStat label="Status" value="Siap Digunakan" />
-          </div>
-        </div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {flows.map((flow) => {
+              const flowTriggers = allTriggers.filter((item) => item.flow_id === flow.id);
+              const activeCount = flowTriggers.filter((item) => item.active).length;
+              const mediaCount = flowTriggers.filter(
+                (item) => getMediaFromItem(item).length > 0
+              ).length;
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {flows.map((flow) => {
-            const flowTriggers = allTriggers.filter((item) => item.flow_id === flow.id);
-            const activeCount = flowTriggers.filter((item) => item.active).length;
-            const mediaCount = flowTriggers.filter(
-              (item) => getMediaFromItem(item).length > 0
-            ).length;
+              return (
+                <div
+                  key={flow.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 12,
+                    alignItems: "center",
+                    padding: 14,
+                    borderRadius: 18,
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.075)",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setTemplateSelectedFlow(flow);
+                      setSelectedFlow(flow);
+                      setShowCreateForm(false);
+                      setEditingTriggerId(null);
+                    }}
+                    className="sidebar-item"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      color: "white",
+                      background: "transparent",
+                      border: "none",
+                      padding: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 14,
+                        display: "grid",
+                        placeItems: "center",
+                        background: "rgba(0,255,157,0.10)",
+                        color: "#00ff9d",
+                        fontWeight: 900,
+                      }}
+                    >
+                      ▦
+                    </div>
 
-            return (
-              <button
-                key={flow.id}
-                onClick={() => {
-                  setTemplateSelectedFlow(flow);
-                  setSelectedFlow(flow);
-                  setShowCreateForm(false);
-                  setEditingTriggerId(null);
-                }}
-                className="glass-card sidebar-item"
+                    <div>
+                      <h3 style={{ fontSize: 18, letterSpacing: -0.3 }}>
+                        {flow.name}
+                      </h3>
+                      <p style={{ ...styles.muted, marginTop: 5, fontSize: 13 }}>
+                        {flowTriggers.length} trigger · {activeCount} aktif · {mediaCount} media
+                      </p>
+                    </div>
+                  </button>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => {
+                        setTemplateSelectedFlow(flow);
+                        setSelectedFlow(flow);
+                        setShowCreateForm(false);
+                        setEditingTriggerId(null);
+                      }}
+                      style={{
+                        ...styles.button,
+                        ...styles.ghostButton,
+                        padding: "8px 11px",
+                      }}
+                    >
+                      Buka
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setEditingFlowId(flow.id);
+                        setEditingFlowName(flow.name);
+                      }}
+                      style={{
+                        ...styles.button,
+                        ...styles.ghostButton,
+                        padding: "8px 11px",
+                      }}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => deleteFlow(flow.id)}
+                      style={{
+                        ...styles.button,
+                        ...styles.dangerButton,
+                        padding: "8px 11px",
+                      }}
+                    >
+                      Hapus
+                    </button>
+                  </div>
+
+                  {editingFlowId === flow.id && (
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        paddingTop: 12,
+                        borderTop: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <input
+                        value={editingFlowName}
+                        onChange={(e) => setEditingFlowName(e.target.value)}
+                        style={{ ...styles.input, flex: 1, minWidth: 220 }}
+                      />
+
+                      <button
+                        onClick={() => updateFlowName(flow.id)}
+                        className="green-btn"
+                        style={styles.button}
+                      >
+                        Simpan
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setEditingFlowId(null);
+                          setEditingFlowName("");
+                        }}
+                        style={{ ...styles.button, ...styles.ghostButton }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {flows.length === 0 && (
+              <div
                 style={{
-                  textAlign: "left",
-                  padding: 22,
-                  cursor: "pointer",
-                  color: "white",
-                  border: "1px solid rgba(255,255,255,0.075)",
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025))",
+                  padding: 18,
+                  borderRadius: 18,
+                  background: "rgba(255,255,255,0.035)",
+                  border: "1px dashed rgba(255,255,255,0.1)",
                 }}
               >
-                <p style={styles.muted}>Alur Template</p>
-                <h2
-                  style={{
-                    marginTop: 9,
-                    fontSize: 25,
-                    letterSpacing: -0.7,
-                    lineHeight: 1.15,
-                  }}
-                >
-                  {flow.name}
-                </h2>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginTop: 16,
-                  }}
-                >
-                  <span
-                    style={{
-                      ...styles.pill,
-                      background: "rgba(0,255,157,0.11)",
-                      color: "#00ff9d",
-                    }}
-                  >
-                    {flowTriggers.length} Trigger
-                  </span>
-
-                  <span
-                    style={{
-                      ...styles.pill,
-                      background: "rgba(255,255,255,0.06)",
-                      color: "#d1d5db",
-                    }}
-                  >
-                    {activeCount} Aktif
-                  </span>
-
-                  <span
-                    style={{
-                      ...styles.pill,
-                      background: "rgba(255,255,255,0.06)",
-                      color: "#d1d5db",
-                    }}
-                  >
-                    {mediaCount} Media
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 18,
-                    paddingTop: 16,
-                    borderTop: "1px solid rgba(255,255,255,0.07)",
-                    color: "#9ca3af",
-                    fontWeight: 800,
-                  }}
-                >
-                  Buka Alur →
-                </div>
-              </button>
-            );
-          })}
-
-          {flows.length === 0 && (
-            <div className="glass-card" style={styles.section}>
-              <p style={styles.muted}>Belum ada alur. Tambahkan alur terlebih dahulu.</p>
-            </div>
-          )}
+                <p style={styles.muted}>Belum ada alur. Tambahkan alur terlebih dahulu.</p>
+              </div>
+            )}
+          </div>
         </div>
       </>
     );
