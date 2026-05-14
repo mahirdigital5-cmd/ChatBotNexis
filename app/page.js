@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 
 const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
@@ -42,18 +42,29 @@ export default function Home() {
   const [waStatus, setWaStatus] = useState(null);
   const [qrData, setQrData] = useState(null);
 
+  const activeTriggers = useMemo(
+    () => triggers.filter((item) => item.active).length,
+    [triggers]
+  );
+
+  const flowEntryCount = useMemo(
+    () => triggers.filter((item) => item.is_flow_entry).length,
+    [triggers]
+  );
+
   function joinResponses(list) {
-  return list.map((item) => item.trim()).filter(Boolean).join("\n");
-}
+    return list.map((item) => item.trim()).filter(Boolean).join("\n");
+  }
 
-function splitResponses(value) {
-  const result = String(value || "")
-    .split(/\n+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  function splitResponses(value) {
+    const result = String(value || "")
+      .split(/\n+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
 
-  return result.length > 0 ? result : [""];
-}
+    return result.length > 0 ? result : [""];
+  }
+
   function getMediaFromItem(item) {
     if (Array.isArray(item?.media)) {
       return item.media.filter((m) => m?.url);
@@ -195,94 +206,102 @@ function splitResponses(value) {
   }, []);
 
   async function uploadMedia(file) {
-  setUploadingCount((prev) => prev + 1);
+    setUploadingCount((prev) => prev + 1);
 
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    const text = await res.text();
-
-    let data;
     try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(text || "Server tidak mengembalikan JSON");
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || "Server tidak mengembalikan JSON");
+      }
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Upload gagal");
+      }
+
+      const url = data.url || data.image;
+
+      setMedia((prev) => [
+        ...prev,
+        {
+          type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
+          url,
+        },
+      ]);
+
+      if (data.type === "image" && !image) {
+        setImage(url);
+      }
+    } catch (err) {
+      alert("Upload gagal: " + err.message);
+    } finally {
+      setUploadingCount((prev) => Math.max(prev - 1, 0));
     }
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Upload gagal");
-    }
-
-    const url = data.url || data.image;
-
-    setMedia((prev) => [
-      ...prev,
-      {
-        type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
-        url,
-      },
-    ]);
-
-    if (data.type === "image" && !image) {
-      setImage(url);
-    }
-  } catch (err) {
-    alert("Upload gagal: " + err.message);
-  } finally {
-    setUploadingCount((prev) => Math.max(prev - 1, 0));
   }
-}
 
   async function uploadEditMedia(file) {
-  setEditUploadingCount((prev) => prev + 1);
+    setEditUploadingCount((prev) => prev + 1);
 
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    const text = await res.text();
-
-    let data;
     try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(text || "Server tidak mengembalikan JSON");
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || "Server tidak mengembalikan JSON");
+      }
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Upload gagal");
+      }
+
+      const url = data.url || data.image;
+
+      setEditMedia((prev) => [
+        ...prev,
+        {
+          type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
+          url,
+        },
+      ]);
+
+      if (data.type === "image" && !editImage) {
+        setEditImage(url);
+      }
+    } catch (err) {
+      alert("Upload gagal: " + err.message);
+    } finally {
+      setEditUploadingCount((prev) => Math.max(prev - 1, 0));
     }
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Upload gagal");
-    }
-
-    const url = data.url || data.image;
-
-    setEditMedia((prev) => [
-      ...prev,
-      {
-        type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
-        url,
-      },
-    ]);
-
-    if (data.type === "image" && !editImage) {
-      setEditImage(url);
-    }
-  } catch (err) {
-    alert("Upload gagal: " + err.message);
-  } finally {
-    setEditUploadingCount((prev) => Math.max(prev - 1, 0));
   }
-}
+
+  function removeMedia(index) {
+    const updated = media.filter((_, i) => i !== index);
+    setMedia(updated);
+
+    const firstImage = updated.find((m) => m.type === "image");
+    setImage(firstImage?.url || "");
+  }
 
   function removeEditMedia(index) {
     const updated = editMedia.filter((_, i) => i !== index);
@@ -301,9 +320,9 @@ function splitResponses(value) {
 
     const finalResponse = joinResponses(responseList);
 
-if (!keyword || (!finalResponse && media.length === 0)) {
-  return alert("Isi keyword dan respon/foto/video");
-}
+    if (!keyword || (!finalResponse && media.length === 0)) {
+      return alert("Isi keyword dan respon/foto/video");
+    }
 
     const firstImage = media.find((m) => m.type === "image");
 
@@ -354,9 +373,9 @@ if (!keyword || (!finalResponse && media.length === 0)) {
 
     const finalEditResponse = joinResponses(editResponseList);
 
-if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
-  return alert("Keyword dan respon/foto/video tidak boleh kosong");
-}
+    if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
+      return alert("Keyword dan respon/foto/video tidak boleh kosong");
+    }
 
     const firstImage = editMedia.find((m) => m.type === "image");
 
@@ -400,422 +419,674 @@ if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
     getTriggers();
   }
 
+  const styles = {
+    page: {
+      minHeight: "100vh",
+      padding: 28,
+      color: "white",
+    },
+    shell: {
+      display: "grid",
+      gridTemplateColumns: "320px minmax(0, 1fr)",
+      gap: 24,
+      maxWidth: 1480,
+      margin: "0 auto",
+    },
+    sidebar: {
+      position: "sticky",
+      top: 28,
+      height: "calc(100vh - 56px)",
+      padding: 22,
+      overflow: "auto",
+    },
+    brand: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 28,
+    },
+    logo: {
+      width: 46,
+      height: 46,
+      borderRadius: 16,
+      display: "grid",
+      placeItems: "center",
+      background:
+        "linear-gradient(135deg, rgba(0,255,157,1), rgba(0,199,123,0.85))",
+      color: "#001b12",
+      fontWeight: 900,
+      boxShadow: "0 0 32px rgba(0,255,157,0.35)",
+    },
+    muted: {
+      color: "#9ca3af",
+    },
+    input: {
+      width: "100%",
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "white",
+      borderRadius: 16,
+      padding: "14px 15px",
+      outline: "none",
+    },
+    button: {
+      border: "none",
+      borderRadius: 14,
+      padding: "12px 15px",
+      cursor: "pointer",
+      fontWeight: 800,
+    },
+    ghostButton: {
+      background: "rgba(255,255,255,0.07)",
+      color: "white",
+      border: "1px solid rgba(255,255,255,0.08)",
+    },
+    dangerButton: {
+      background: "rgba(255,77,103,0.15)",
+      color: "#ff7b90",
+      border: "1px solid rgba(255,77,103,0.25)",
+    },
+    main: {
+      minWidth: 0,
+    },
+    topbar: {
+      padding: 26,
+      marginBottom: 22,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 18,
+    },
+    title: {
+      fontSize: 34,
+      letterSpacing: -1,
+      marginBottom: 8,
+    },
+    cardGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+      gap: 16,
+      marginBottom: 22,
+    },
+    statCard: {
+      padding: 20,
+      minHeight: 128,
+      position: "relative",
+      overflow: "hidden",
+    },
+    formGrid: {
+      display: "grid",
+      gridTemplateColumns: "1.2fr 0.8fr",
+      gap: 18,
+    },
+    section: {
+      padding: 22,
+      marginBottom: 22,
+    },
+    label: {
+      display: "block",
+      fontSize: 13,
+      color: "#9ca3af",
+      marginBottom: 8,
+      fontWeight: 700,
+    },
+    textarea: {
+      width: "100%",
+      minHeight: 96,
+      resize: "vertical",
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "white",
+      borderRadius: 16,
+      padding: 14,
+      outline: "none",
+    },
+    pill: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 7,
+      padding: "7px 12px",
+      borderRadius: 999,
+      fontSize: 12,
+      fontWeight: 800,
+    },
+    tableWrap: {
+      padding: 0,
+      overflow: "hidden",
+    },
+  };
+
   return (
-    <main
-      style={{
-        padding: 40,
-        fontFamily: "Arial",
-        background: "#f5f5f5",
-        minHeight: "100vh",
-      }}
-    >
-      <h1>WA Auto Reply Trigger</h1>
-
-      <div
-        style={{
-          marginTop: 15,
-          background: "white",
-          padding: 20,
-          borderRadius: 10,
-          marginBottom: 20,
-        }}
-      >
-        <h3>Status WhatsApp</h3>
-
-        <p>
-          Status:{" "}
-          <b style={{ color: waStatus ? "green" : "red" }}>
-            {waStatus ? "Terhubung" : "Belum Terhubung"}
-          </b>
-        </p>
-
-        {!waStatus ? (
-          <button
-            onClick={connectWa}
-            style={{
-              background: "#00a884",
-              color: "white",
-              border: "none",
-              padding: "10px 15px",
-              borderRadius: 8,
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-          >
-            Hubungkan WA
-          </button>
-        ) : (
-          <button
-            onClick={logoutWa}
-            style={{
-              background: "red",
-              color: "white",
-              border: "none",
-              padding: "10px 15px",
-              borderRadius: 8,
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-          >
-            Logout WA
-          </button>
-        )}
-
-        {!waStatus && qrData && (
-          <div style={{ marginTop: 20 }}>
-            <img
-              src={qrData}
-              alt="QR"
-              style={{
-                width: 250,
-                borderRadius: 10,
-              }}
-            />
-          </div>
-        )}
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "280px 1fr",
-          gap: 20,
-        }}
-      >
-        <div
-          style={{
-            background: "white",
-            padding: 20,
-            borderRadius: 10,
-          }}
-        >
-          <h3>Daftar Alur</h3>
-
-          <input
-            value={newFlowName}
-            onChange={(e) => setNewFlowName(e.target.value)}
-            placeholder="Nama alur"
-            style={{
-              padding: 10,
-              width: "100%",
-              marginBottom: 10,
-              boxSizing: "border-box",
-            }}
-          />
-
-          <button
-            onClick={addFlow}
-            style={{
-              width: "100%",
-              background: "#00a884",
-              color: "white",
-              border: "none",
-              padding: 10,
-              borderRadius: 8,
-              marginBottom: 15,
-              cursor: "pointer",
-            }}
-          >
-            + Tambah Alur
-          </button>
-
-          {flows.map((flow) => (
-            <div
-              key={flow.id}
-              style={{
-                background:
-                  selectedFlow?.id === flow.id ? "#00a884" : "#f2f2f2",
-                color: selectedFlow?.id === flow.id ? "white" : "black",
-                padding: 12,
-                borderRadius: 8,
-                marginBottom: 10,
-              }}
-            >
-              {editingFlowId === flow.id ? (
-                <>
-                  <input
-                    value={editingFlowName}
-                    onChange={(e) => setEditingFlowName(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: 8,
-                      marginBottom: 8,
-                      boxSizing: "border-box",
-                    }}
-                  />
-
-                  <button
-                    onClick={() => updateFlowName(flow.id)}
-                    style={{ marginRight: 5 }}
-                  >
-                    Simpan
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setEditingFlowId(null);
-                      setEditingFlowName("");
-                    }}
-                  >
-                    Batal
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div
-                    onClick={() => selectFlow(flow)}
-                    style={{
-                      cursor: "pointer",
-                      marginBottom: 10,
-                      fontWeight:
-                        selectedFlow?.id === flow.id ? "bold" : "normal",
-                    }}
-                  >
-                    {flow.name}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setEditingFlowId(flow.id);
-                      setEditingFlowName(flow.name);
-                    }}
-                    style={{ marginRight: 5 }}
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={() => deleteFlow(flow.id)}
-                    style={{
-                      background: "red",
-                      color: "white",
-                      border: "none",
-                    }}
-                  >
-                    Hapus
-                  </button>
-                </>
-              )}
+    <main style={styles.page}>
+      <div style={styles.shell}>
+        <aside className="glass-card" style={styles.sidebar}>
+          <div style={styles.brand}>
+            <div style={styles.logo}>N</div>
+            <div>
+              <h2 style={{ fontSize: 20, lineHeight: 1 }}>ChatBotNexis</h2>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 6 }}>
+                Luxury WA Automation
+              </p>
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div>
           <div
             style={{
-              background: "white",
-              padding: 20,
-              borderRadius: 10,
+              padding: 16,
+              borderRadius: 20,
+              background:
+                "linear-gradient(135deg, rgba(0,255,157,0.14), rgba(255,255,255,0.04))",
+              border: "1px solid rgba(0,255,157,0.15)",
               marginBottom: 20,
             }}
           >
-            <h3>
-              Trigger Alur:{" "}
-              <span style={{ color: "#00a884" }}>
-                {selectedFlow?.name || "-"}
-              </span>
-            </h3>
+            <p style={{ ...styles.muted, fontSize: 13, marginBottom: 8 }}>
+              WhatsApp Status
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: waStatus ? "#00ff9d" : "#ff4d67",
+                  boxShadow: waStatus
+                    ? "0 0 18px rgba(0,255,157,0.8)"
+                    : "0 0 18px rgba(255,77,103,0.8)",
+                }}
+              />
+              <b>{waStatus ? "Terhubung" : "Belum Terhubung"}</b>
+            </div>
+
+            <button
+              onClick={waStatus ? logoutWa : connectWa}
+              className={waStatus ? "" : "green-btn"}
+              style={{
+                ...styles.button,
+                ...(waStatus ? styles.dangerButton : {}),
+                width: "100%",
+                marginTop: 15,
+              }}
+            >
+              {waStatus ? "Logout WhatsApp" : "Hubungkan WhatsApp"}
+            </button>
+
+            {!waStatus && qrData && (
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  borderRadius: 18,
+                  background: "rgba(255,255,255,0.08)",
+                }}
+              >
+                <img
+                  src={qrData}
+                  alt="QR"
+                  style={{ width: "100%", borderRadius: 14, display: "block" }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={styles.label}>Buat Alur Baru</label>
+            <input
+              value={newFlowName}
+              onChange={(e) => setNewFlowName(e.target.value)}
+              placeholder="Contoh: Closing, CS, Promo"
+              style={styles.input}
+            />
+            <button
+              onClick={addFlow}
+              className="green-btn"
+              style={{ ...styles.button, width: "100%", marginTop: 10 }}
+            >
+              + Tambah Alur
+            </button>
+          </div>
+
+          <div style={{ marginTop: 22 }}>
+            <p
+              style={{
+                ...styles.muted,
+                fontSize: 13,
+                fontWeight: 800,
+                marginBottom: 12,
+              }}
+            >
+              DAFTAR ALUR
+            </p>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {flows.map((flow) => (
+                <div
+                  key={flow.id}
+                  className="sidebar-item"
+                  style={{
+                    padding: 14,
+                    borderRadius: 18,
+                    background:
+                      selectedFlow?.id === flow.id
+                        ? "linear-gradient(135deg, rgba(0,255,157,0.22), rgba(255,255,255,0.06))"
+                        : "rgba(255,255,255,0.045)",
+                    border:
+                      selectedFlow?.id === flow.id
+                        ? "1px solid rgba(0,255,157,0.35)"
+                        : "1px solid rgba(255,255,255,0.07)",
+                  }}
+                >
+                  {editingFlowId === flow.id ? (
+                    <>
+                      <input
+                        value={editingFlowName}
+                        onChange={(e) => setEditingFlowName(e.target.value)}
+                        style={styles.input}
+                      />
+
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <button
+                          onClick={() => updateFlowName(flow.id)}
+                          className="green-btn"
+                          style={{ ...styles.button, flex: 1, padding: 10 }}
+                        >
+                          Simpan
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setEditingFlowId(null);
+                            setEditingFlowName("");
+                          }}
+                          style={{
+                            ...styles.button,
+                            ...styles.ghostButton,
+                            flex: 1,
+                            padding: 10,
+                          }}
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        onClick={() => selectFlow(flow)}
+                        style={{
+                          cursor: "pointer",
+                          fontWeight: 800,
+                          marginBottom: 12,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
+                        <span>{flow.name}</span>
+                        {selectedFlow?.id === flow.id && (
+                          <span style={{ color: "#00ff9d" }}>●</span>
+                        )}
+                      </div>
+
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => {
+                            setEditingFlowId(flow.id);
+                            setEditingFlowName(flow.name);
+                          }}
+                          style={{
+                            ...styles.button,
+                            ...styles.ghostButton,
+                            padding: "8px 10px",
+                            flex: 1,
+                          }}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() => deleteFlow(flow.id)}
+                          style={{
+                            ...styles.button,
+                            ...styles.dangerButton,
+                            padding: "8px 10px",
+                            flex: 1,
+                          }}
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+
+              {flows.length === 0 && (
+                <p style={{ ...styles.muted, fontSize: 14 }}>
+                  Belum ada alur. Buat alur pertama kamu.
+                </p>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <section style={styles.main}>
+          <div className="glass-card" style={styles.topbar}>
+            <div>
+              <p
+                style={{
+                  color: "#00ff9d",
+                  fontSize: 13,
+                  fontWeight: 900,
+                  letterSpacing: 1.4,
+                  marginBottom: 8,
+                }}
+              >
+                AI AUTOMATION COMMAND CENTER
+              </p>
+              <h1 style={styles.title}>WA Auto Reply Trigger</h1>
+              <p style={styles.muted}>
+                Kelola flow, keyword, multi jawaban, foto, dan video dalam satu
+                dashboard premium.
+              </p>
+            </div>
 
             <button
               onClick={() => setShowForm(!showForm)}
               disabled={!selectedFlow}
+              className={selectedFlow ? "green-btn" : ""}
               style={{
-                background: selectedFlow ? "#00a884" : "#999",
-                color: "white",
-                border: "none",
-                padding: "10px 15px",
-                borderRadius: 8,
+                ...styles.button,
+                opacity: selectedFlow ? 1 : 0.45,
                 cursor: selectedFlow ? "pointer" : "not-allowed",
+                minWidth: 170,
               }}
             >
-              + Tambah Trigger
+              {showForm ? "Tutup Form" : "+ Tambah Trigger"}
             </button>
           </div>
 
-          {showForm && (
+          <div style={styles.cardGrid}>
+            <div className="glass-card" style={styles.statCard}>
+              <p style={styles.muted}>Alur Aktif</p>
+              <h2 style={{ fontSize: 34, marginTop: 12 }}>{flows.length}</h2>
+              <p style={{ ...styles.muted, marginTop: 10, fontSize: 13 }}>
+                Total flow automation
+              </p>
+            </div>
+
+            <div className="glass-card" style={styles.statCard}>
+              <p style={styles.muted}>Trigger</p>
+              <h2 style={{ fontSize: 34, marginTop: 12 }}>{triggers.length}</h2>
+              <p style={{ ...styles.muted, marginTop: 10, fontSize: 13 }}>
+                Dalam alur terpilih
+              </p>
+            </div>
+
+            <div className="glass-card" style={styles.statCard}>
+              <p style={styles.muted}>Aktif</p>
+              <h2 style={{ fontSize: 34, marginTop: 12 }}>{activeTriggers}</h2>
+              <p style={{ ...styles.muted, marginTop: 10, fontSize: 13 }}>
+                Siap membalas pelanggan
+              </p>
+            </div>
+
+            <div className="glass-card" style={styles.statCard}>
+              <p style={styles.muted}>Flow Entry</p>
+              <h2 style={{ fontSize: 34, marginTop: 12 }}>{flowEntryCount}</h2>
+              <p style={{ ...styles.muted, marginTop: 10, fontSize: 13 }}>
+                Trigger pindah alur
+              </p>
+            </div>
+          </div>
+
+          <div className="glass-card" style={styles.section}>
             <div
               style={{
-                background: "white",
-                padding: 20,
-                borderRadius: 10,
-                marginBottom: 20,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 14,
               }}
             >
-              <h3>Tambah Trigger</h3>
-
-              <input
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Keyword"
-                style={{
-                  padding: 12,
-                  marginBottom: 10,
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              />
-
-              {responseList.map((item, index) => (
-  <div key={index} style={{ marginBottom: 10 }}>
-    <textarea
-      value={item}
-      onChange={(e) => {
-        const updated = [...responseList];
-        updated[index] = e.target.value;
-        setResponseList(updated);
-        setResponse(joinResponses(updated));
-      }}
-      placeholder={`Jawaban ${index + 1}`}
-      style={{
-        padding: 12,
-        width: "100%",
-        minHeight: 90,
-        boxSizing: "border-box",
-      }}
-    />
-
-    {responseList.length > 1 && (
-      <button
-        onClick={() => {
-          const updated = responseList.filter((_, i) => i !== index);
-          setResponseList(updated);
-          setResponse(joinResponses(updated));
-        }}
-        style={{
-          marginTop: 5,
-          background: "red",
-          color: "white",
-          border: "none",
-          padding: "6px 10px",
-          borderRadius: 6,
-          cursor: "pointer",
-        }}
-      >
-        Hapus Jawaban
-      </button>
-    )}
-  </div>
-))}
-
-<button
-  onClick={() => setResponseList([...responseList, ""])}
-  style={{
-    marginBottom: 10,
-    background: "#333",
-    color: "white",
-    border: "none",
-    padding: "8px 12px",
-    borderRadius: 8,
-    cursor: "pointer",
-  }}
->
-  + Tambah Jawaban
-</button>
-
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                style={{
-                  padding: 12,
-                  marginBottom: 10,
-                  width: "100%",
-                }}
-              >
-                <option>Mengandung</option>
-                <option>Sama Persis</option>
-              </select>
-
-              <div style={{ marginBottom: 15 }}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={isFlowEntry}
-                    onChange={(e) => setIsFlowEntry(e.target.checked)}
-                  />{" "}
-                  Jadikan trigger masuk/pindah alur
-                </label>
+              <div>
+                <p style={styles.muted}>Trigger Alur</p>
+                <h2 style={{ marginTop: 6 }}>
+                  {selectedFlow?.name || "Pilih alur terlebih dahulu"}
+                </h2>
               </div>
 
-              <input
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  files.forEach((file) => uploadMedia(file));
-                  e.target.value = "";
+              <span
+                style={{
+                  ...styles.pill,
+                  background: "rgba(0,255,157,0.12)",
+                  color: "#00ff9d",
+                  border: "1px solid rgba(0,255,157,0.2)",
                 }}
-              />
+              >
+                ● {selectedFlow ? "Selected" : "No Flow"}
+              </span>
+            </div>
+          </div>
 
-              {uploading && (
-                <p>Upload media... {uploadingCount} file sedang diproses</p>
-              )}
-
-              {media.length > 0 && (
-                <div
+          {showForm && (
+            <div className="glass-card glow" style={styles.section}>
+              <div style={{ marginBottom: 22 }}>
+                <p
                   style={{
-                    marginTop: 10,
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
+                    color: "#00ff9d",
+                    fontSize: 13,
+                    fontWeight: 900,
+                    letterSpacing: 1.4,
+                    marginBottom: 8,
                   }}
                 >
-                  {media.map((item, index) => (
-                    <div key={index}>
-                      {item.type === "video" ? (
-                        <video
-                          src={item.url}
-                          controls
-                          style={{
-                            width: 120,
-                            borderRadius: 8,
-                            display: "block",
-                            marginBottom: 6,
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src={item.url}
-                          alt="Preview"
-                          style={{
-                            width: 120,
-                            borderRadius: 8,
-                            display: "block",
-                            marginBottom: 6,
-                          }}
-                        />
-                      )}
+                  CREATE AUTOMATION
+                </p>
+                <h2>Tambah Trigger Baru</h2>
+                <p style={{ ...styles.muted, marginTop: 8 }}>
+                  Buat keyword, multi balasan, dan lampirkan media jika
+                  diperlukan.
+                </p>
+              </div>
 
-                      <button
-                        onClick={() => removeMedia(index)}
-                        style={{
-                          background: "red",
-                          color: "white",
-                          border: "none",
-                          padding: "5px 8px",
-                          borderRadius: 5,
-                          cursor: "pointer",
+              <div style={styles.formGrid}>
+                <div>
+                  <label style={styles.label}>Keyword</label>
+                  <input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="Contoh: halo, harga, ongkir"
+                    style={{ ...styles.input, marginBottom: 16 }}
+                  />
+
+                  <label style={styles.label}>Multi Jawaban</label>
+                  {responseList.map((item, index) => (
+                    <div key={index} style={{ marginBottom: 12 }}>
+                      <textarea
+                        value={item}
+                        onChange={(e) => {
+                          const updated = [...responseList];
+                          updated[index] = e.target.value;
+                          setResponseList(updated);
+                          setResponse(joinResponses(updated));
                         }}
-                      >
-                        Hapus
-                      </button>
+                        placeholder={`Jawaban ${index + 1}`}
+                        style={styles.textarea}
+                      />
+
+                      {responseList.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const updated = responseList.filter(
+                              (_, i) => i !== index
+                            );
+                            setResponseList(updated);
+                            setResponse(joinResponses(updated));
+                          }}
+                          style={{
+                            ...styles.button,
+                            ...styles.dangerButton,
+                            marginTop: 8,
+                            padding: "9px 12px",
+                          }}
+                        >
+                          Hapus Jawaban
+                        </button>
+                      )}
                     </div>
                   ))}
+
+                  <button
+                    onClick={() => setResponseList([...responseList, ""])}
+                    style={{
+                      ...styles.button,
+                      ...styles.ghostButton,
+                      marginBottom: 16,
+                    }}
+                  >
+                    + Tambah Jawaban
+                  </button>
                 </div>
-              )}
+
+                <div>
+                  <label style={styles.label}>Tipe Trigger</label>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    style={{ ...styles.input, marginBottom: 16 }}
+                  >
+                    <option>Mengandung</option>
+                    <option>Sama Persis</option>
+                  </select>
+
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "center",
+                      padding: 15,
+                      borderRadius: 16,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      marginBottom: 16,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isFlowEntry}
+                      onChange={(e) => setIsFlowEntry(e.target.checked)}
+                    />
+                    <span>Jadikan trigger masuk/pindah alur</span>
+                  </label>
+
+                  <label style={styles.label}>Media</label>
+                  <label
+                    style={{
+                      display: "block",
+                      padding: 18,
+                      borderRadius: 20,
+                      border: "1px dashed rgba(0,255,157,0.35)",
+                      background: "rgba(0,255,157,0.06)",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        files.forEach((file) => uploadMedia(file));
+                        e.target.value = "";
+                      }}
+                    />
+                    <b>Upload Foto / Video</b>
+                    <p style={{ ...styles.muted, fontSize: 13, marginTop: 6 }}>
+                      Klik untuk pilih file media
+                    </p>
+                  </label>
+
+                  {uploading && (
+                    <p style={{ color: "#00ff9d", marginBottom: 12 }}>
+                      Upload media... {uploadingCount} file sedang diproses
+                    </p>
+                  )}
+
+                  {media.length > 0 && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        gap: 10,
+                      }}
+                    >
+                      {media.map((item, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            padding: 10,
+                            borderRadius: 16,
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          {item.type === "video" ? (
+                            <video
+                              src={item.url}
+                              controls
+                              style={{
+                                width: "100%",
+                                borderRadius: 12,
+                                display: "block",
+                                marginBottom: 8,
+                              }}
+                            />
+                          ) : (
+                            <img
+                              src={item.url}
+                              alt="Preview"
+                              style={{
+                                width: "100%",
+                                borderRadius: 12,
+                                display: "block",
+                                marginBottom: 8,
+                              }}
+                            />
+                          )}
+
+                          <button
+                            onClick={() => removeMedia(index)}
+                            style={{
+                              ...styles.button,
+                              ...styles.dangerButton,
+                              width: "100%",
+                              padding: "8px 10px",
+                            }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <button
                 onClick={addTrigger}
                 disabled={uploading}
+                className={!uploading ? "green-btn" : ""}
                 style={{
-                  marginTop: 15,
-                  background: uploading ? "#999" : "#00a884",
-                  color: "white",
-                  border: "none",
-                  padding: "12px 18px",
-                  borderRadius: 8,
-                  fontWeight: "bold",
+                  ...styles.button,
+                  marginTop: 22,
+                  opacity: uploading ? 0.5 : 1,
                   cursor: uploading ? "not-allowed" : "pointer",
+                  minWidth: 180,
                 }}
               >
                 Simpan Trigger
@@ -823,155 +1094,186 @@ if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
             </div>
           )}
 
-          <div
-            style={{
-              background: "white",
-              borderRadius: 10,
-              padding: 20,
-              overflowX: "auto",
-            }}
-          >
-            <table width="100%" cellPadding="15">
-              <thead>
-                <tr>
-                  <th align="left">Keyword</th>
-                  <th align="left">Respon</th>
-                  <th align="left">Trigger</th>
-                  <th align="left">Status</th>
-                  <th align="left">Aksi</th>
-                </tr>
-              </thead>
+          <div className="glass-card" style={styles.tableWrap}>
+            <div
+              style={{
+                padding: "22px 22px 0",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <h2>Trigger Library</h2>
+                <p style={{ ...styles.muted, marginTop: 6 }}>
+                  Semua automation di alur terpilih.
+                </p>
+              </div>
+            </div>
 
-              <tbody>
-                {triggers.map((item) => (
-                  <tr key={item.id}>
-                    {editingTriggerId === item.id ? (
-                      <>
-                        <td>
-                          <input
-                            value={editKeyword}
-                            onChange={(e) => setEditKeyword(e.target.value)}
-                            style={{ padding: 8, width: "100%" }}
-                          />
-                        </td>
+            <div style={{ overflowX: "auto", padding: 22 }}>
+              <table className="table-modern">
+                <thead>
+                  <tr>
+                    <th>Keyword</th>
+                    <th>Respon</th>
+                    <th>Trigger</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
 
-                        <td>
-                          {editResponseList.map((item, index) => (
-  <div key={index} style={{ marginBottom: 8 }}>
-    <textarea
-      value={item}
-      onChange={(e) => {
-        const updated = [...editResponseList];
-        updated[index] = e.target.value;
-        setEditResponseList(updated);
-        setEditResponse(joinResponses(updated));
-      }}
-      placeholder={`Jawaban ${index + 1}`}
-      style={{
-        padding: 8,
-        width: "100%",
-        minHeight: 70,
-      }}
-    />
-
-    {editResponseList.length > 1 && (
-      <button
-        onClick={() => {
-          const updated = editResponseList.filter((_, i) => i !== index);
-          setEditResponseList(updated);
-          setEditResponse(joinResponses(updated));
-        }}
-        style={{
-          marginTop: 5,
-          background: "red",
-          color: "white",
-          border: "none",
-          padding: "5px 8px",
-          borderRadius: 5,
-          cursor: "pointer",
-        }}
-      >
-        Hapus
-      </button>
-    )}
-  </div>
-))}
-
-<button
-  onClick={() => setEditResponseList([...editResponseList, ""])}
-  style={{
-    background: "#333",
-    color: "white",
-    border: "none",
-    padding: "6px 10px",
-    borderRadius: 6,
-    cursor: "pointer",
-  }}
->
-  + Tambah Jawaban
-</button>
-                        </td>
-
-                        <td>
-                          <select
-                            value={editType}
-                            onChange={(e) => setEditType(e.target.value)}
-                            style={{ padding: 8, marginBottom: 8 }}
-                          >
-                            <option>Mengandung</option>
-                            <option>Sama Persis</option>
-                          </select>
-
-                          <br />
-
-                          <label>
+                <tbody>
+                  {triggers.map((item) => (
+                    <tr key={item.id}>
+                      {editingTriggerId === item.id ? (
+                        <>
+                          <td style={{ minWidth: 190 }}>
                             <input
-                              type="checkbox"
-                              checked={editIsFlowEntry}
-                              onChange={(e) =>
-                                setEditIsFlowEntry(e.target.checked)
-                              }
-                            />{" "}
-                            Masuk/Pindah Alur
-                          </label>
-
-                          <div style={{ marginTop: 10 }}>
-                            <input
-                              type="file"
-                              accept="image/*,video/*"
-                              multiple
-                              onChange={(e) => {
-                                const files = Array.from(e.target.files || []);
-                                files.forEach((file) => uploadEditMedia(file));
-                                e.target.value = "";
-                              }}
+                              value={editKeyword}
+                              onChange={(e) => setEditKeyword(e.target.value)}
+                              style={styles.input}
                             />
+                          </td>
+
+                          <td style={{ minWidth: 290 }}>
+                            {editResponseList.map((item, index) => (
+                              <div key={index} style={{ marginBottom: 8 }}>
+                                <textarea
+                                  value={item}
+                                  onChange={(e) => {
+                                    const updated = [...editResponseList];
+                                    updated[index] = e.target.value;
+                                    setEditResponseList(updated);
+                                    setEditResponse(joinResponses(updated));
+                                  }}
+                                  placeholder={`Jawaban ${index + 1}`}
+                                  style={{ ...styles.textarea, minHeight: 74 }}
+                                />
+
+                                {editResponseList.length > 1 && (
+                                  <button
+                                    onClick={() => {
+                                      const updated = editResponseList.filter(
+                                        (_, i) => i !== index
+                                      );
+                                      setEditResponseList(updated);
+                                      setEditResponse(joinResponses(updated));
+                                    }}
+                                    style={{
+                                      ...styles.button,
+                                      ...styles.dangerButton,
+                                      marginTop: 6,
+                                      padding: "7px 10px",
+                                    }}
+                                  >
+                                    Hapus
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+
+                            <button
+                              onClick={() =>
+                                setEditResponseList([...editResponseList, ""])
+                              }
+                              style={{
+                                ...styles.button,
+                                ...styles.ghostButton,
+                                padding: "8px 10px",
+                              }}
+                            >
+                              + Tambah Jawaban
+                            </button>
+                          </td>
+
+                          <td style={{ minWidth: 230 }}>
+                            <select
+                              value={editType}
+                              onChange={(e) => setEditType(e.target.value)}
+                              style={{ ...styles.input, marginBottom: 10 }}
+                            >
+                              <option>Mengandung</option>
+                              <option>Sama Persis</option>
+                            </select>
+
+                            <label
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                alignItems: "center",
+                                fontSize: 13,
+                                color: "#d1d5db",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editIsFlowEntry}
+                                onChange={(e) =>
+                                  setEditIsFlowEntry(e.target.checked)
+                                }
+                              />
+                              Masuk/Pindah Alur
+                            </label>
+
+                            <label
+                              style={{
+                                display: "block",
+                                padding: 12,
+                                borderRadius: 14,
+                                border: "1px dashed rgba(0,255,157,0.25)",
+                                background: "rgba(0,255,157,0.05)",
+                                cursor: "pointer",
+                                textAlign: "center",
+                                marginTop: 12,
+                                fontSize: 13,
+                              }}
+                            >
+                              <input
+                                type="file"
+                                accept="image/*,video/*"
+                                multiple
+                                style={{ display: "none" }}
+                                onChange={(e) => {
+                                  const files = Array.from(e.target.files || []);
+                                  files.forEach((file) => uploadEditMedia(file));
+                                  e.target.value = "";
+                                }}
+                              />
+                              Upload Media
+                            </label>
 
                             {editUploading && (
-                              <p>
-                                Upload media... {editUploadingCount} file
-                                sedang diproses
+                              <p style={{ color: "#00ff9d", marginTop: 8 }}>
+                                Upload... {editUploadingCount} file
                               </p>
                             )}
 
                             {editMedia.length > 0 && (
                               <div
                                 style={{
-                                  marginTop: 8,
-                                  display: "flex",
+                                  marginTop: 10,
+                                  display: "grid",
                                   gap: 10,
-                                  flexWrap: "wrap",
                                 }}
                               >
                                 {editMedia.map((item, index) => (
-                                  <div key={index}>
+                                  <div
+                                    key={index}
+                                    style={{
+                                      padding: 8,
+                                      borderRadius: 14,
+                                      background: "rgba(255,255,255,0.06)",
+                                    }}
+                                  >
                                     {item.type === "video" ? (
                                       <video
                                         src={item.url}
                                         controls
                                         style={{
-                                          width: 100,
-                                          borderRadius: 8,
+                                          width: "100%",
+                                          borderRadius: 10,
                                           display: "block",
                                           marginBottom: 6,
                                         }}
@@ -981,8 +1283,8 @@ if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
                                         src={item.url}
                                         alt="Edit Preview"
                                         style={{
-                                          width: 100,
-                                          borderRadius: 8,
+                                          width: "100%",
+                                          borderRadius: 10,
                                           display: "block",
                                           marginBottom: 6,
                                         }}
@@ -992,12 +1294,10 @@ if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
                                     <button
                                       onClick={() => removeEditMedia(index)}
                                       style={{
-                                        background: "red",
-                                        color: "white",
-                                        border: "none",
-                                        padding: "5px 8px",
-                                        borderRadius: 5,
-                                        cursor: "pointer",
+                                        ...styles.button,
+                                        ...styles.dangerButton,
+                                        width: "100%",
+                                        padding: "7px 10px",
                                       }}
                                     >
                                       Hapus
@@ -1006,87 +1306,189 @@ if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
                                 ))}
                               </div>
                             )}
-                          </div>
-                        </td>
+                          </td>
 
-                        <td>{item.active ? "Aktif" : "Nonaktif"}</td>
+                          <td>
+                            <span
+                              style={{
+                                ...styles.pill,
+                                background: item.active
+                                  ? "rgba(0,255,157,0.12)"
+                                  : "rgba(255,77,103,0.12)",
+                                color: item.active ? "#00ff9d" : "#ff7b90",
+                              }}
+                            >
+                              {item.active ? "Aktif" : "Nonaktif"}
+                            </span>
+                          </td>
 
-                        <td>
-                          <button
-                            onClick={() => saveEditTrigger(item.id)}
-                            disabled={editUploading}
-                            style={{ marginRight: 8 }}
-                          >
-                            Simpan
-                          </button>
+                          <td style={{ minWidth: 170 }}>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <button
+                                onClick={() => saveEditTrigger(item.id)}
+                                disabled={editUploading}
+                                className={!editUploading ? "green-btn" : ""}
+                                style={{
+                                  ...styles.button,
+                                  padding: "9px 12px",
+                                  opacity: editUploading ? 0.5 : 1,
+                                }}
+                              >
+                                Simpan
+                              </button>
 
-                          <button
-                            onClick={() => {
-                              setEditingTriggerId(null);
-                              setEditMedia([]);
-                              setEditImage("");
-                              setEditUploadingCount(0);
-                            }}
-                          >
-                            Batal
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{item.keyword}</td>
+                              <button
+                                onClick={() => {
+                                  setEditingTriggerId(null);
+                                  setEditMedia([]);
+                                  setEditImage("");
+                                  setEditUploadingCount(0);
+                                }}
+                                style={{
+                                  ...styles.button,
+                                  ...styles.ghostButton,
+                                  padding: "9px 12px",
+                                }}
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            <b>{item.keyword}</b>
+                          </td>
 
-                        <td>{item.response}</td>
+                          <td style={{ maxWidth: 360 }}>
+                            <div
+                              style={{
+                                whiteSpace: "pre-wrap",
+                                color: "#d1d5db",
+                                lineHeight: 1.55,
+                              }}
+                            >
+                              {item.response || (
+                                <span style={styles.muted}>Media only</span>
+                              )}
+                            </div>
+                          </td>
 
-                        <td>
-                          {item.is_flow_entry
-                            ? "Masuk/Pindah Alur"
-                            : item.type}
-                        </td>
+                          <td>
+                            <span
+                              style={{
+                                ...styles.pill,
+                                background: item.is_flow_entry
+                                  ? "rgba(0,255,157,0.12)"
+                                  : "rgba(255,255,255,0.07)",
+                                color: item.is_flow_entry ? "#00ff9d" : "white",
+                              }}
+                            >
+                              {item.is_flow_entry
+                                ? "Masuk/Pindah Alur"
+                                : item.type}
+                            </span>
+                          </td>
 
-                        <td>{item.active ? "Aktif" : "Nonaktif"}</td>
+                          <td>
+                            <span
+                              style={{
+                                ...styles.pill,
+                                background: item.active
+                                  ? "rgba(0,255,157,0.12)"
+                                  : "rgba(255,77,103,0.12)",
+                                color: item.active ? "#00ff9d" : "#ff7b90",
+                              }}
+                            >
+                              {item.active ? "Aktif" : "Nonaktif"}
+                            </span>
+                          </td>
 
-                        <td>
-                          <button
-                            onClick={() => startEditTrigger(item)}
-                            style={{ marginRight: 8 }}
-                          >
-                            Edit
-                          </button>
+                          <td>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                              }}
+                            >
+                              <button
+                                onClick={() => startEditTrigger(item)}
+                                style={{
+                                  ...styles.button,
+                                  ...styles.ghostButton,
+                                  padding: "9px 12px",
+                                }}
+                              >
+                                Edit
+                              </button>
 
-                          <button
-                            onClick={() => toggleStatus(item.id, item.active)}
-                            style={{ marginRight: 8 }}
-                          >
-                            {item.active ? "Matikan" : "Aktifkan"}
-                          </button>
+                              <button
+                                onClick={() => toggleStatus(item.id, item.active)}
+                                style={{
+                                  ...styles.button,
+                                  ...styles.ghostButton,
+                                  padding: "9px 12px",
+                                }}
+                              >
+                                {item.active ? "Matikan" : "Aktifkan"}
+                              </button>
 
-                          <button
-                            onClick={() => deleteTrigger(item.id)}
-                            style={{
-                              background: "red",
-                              color: "white",
-                              border: "none",
-                            }}
-                          >
-                            Hapus
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
+                              <button
+                                onClick={() => deleteTrigger(item.id)}
+                                style={{
+                                  ...styles.button,
+                                  ...styles.dangerButton,
+                                  padding: "9px 12px",
+                                }}
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
 
-                {triggers.length === 0 && (
-                  <tr>
-                    <td colSpan="5">Belum ada trigger.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  {triggers.length === 0 && (
+                    <tr>
+                      <td colSpan="5" style={{ color: "#9ca3af" }}>
+                        Belum ada trigger di alur ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          main > div {
+            grid-template-columns: 1fr !important;
+          }
+
+          aside {
+            position: relative !important;
+            top: auto !important;
+            height: auto !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          main {
+            padding: 16px !important;
+          }
+
+          section > div:nth-child(2) {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
