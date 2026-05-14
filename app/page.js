@@ -160,30 +160,36 @@ export default function Home() {
 
   async function deleteFlow(id) {
   const ok = confirm(
-    "Yakin hapus alur? Semua trigger di alur ini ikut terhapus."
+    "Yakin hapus alur? Semua trigger dan session di alur ini ikut terhapus."
   );
 
   if (!ok) return;
 
   try {
+    const sessionDelete = await supabase
+      .from("sessions")
+      .delete()
+      .eq("flow_id", id);
+
+    if (sessionDelete.error) {
+      alert(sessionDelete.error.message);
+      return;
+    }
+
     const triggerDelete = await supabase
       .from("triggers")
       .delete()
       .eq("flow_id", id);
 
-    console.log("DELETE TRIGGER:", triggerDelete);
+    if (triggerDelete.error) {
+      alert(triggerDelete.error.message);
+      return;
+    }
 
     const flowDelete = await supabase
       .from("flows")
       .delete()
       .eq("id", id);
-
-    console.log("DELETE FLOW:", flowDelete);
-
-    if (triggerDelete.error) {
-      alert(triggerDelete.error.message);
-      return;
-    }
 
     if (flowDelete.error) {
       alert(flowDelete.error.message);
@@ -200,11 +206,9 @@ export default function Home() {
 
     refreshAll();
   } catch (err) {
-    console.log(err);
     alert(err.message);
   }
 }
-
   function selectFlow(flow) {
     setSelectedFlow(flow);
     setShowCreateForm(false);
