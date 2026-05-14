@@ -9,6 +9,7 @@ export default function Home() {
   const [flows, setFlows] = useState([]);
   const [allTriggers, setAllTriggers] = useState([]);
   const [selectedFlow, setSelectedFlow] = useState(null);
+  const [templateSelectedFlow, setTemplateSelectedFlow] = useState(null);
 
   const [newFlowName, setNewFlowName] = useState("");
   const [editingFlowId, setEditingFlowId] = useState(null);
@@ -166,6 +167,10 @@ export default function Home() {
 
     if (selectedFlow?.id === id) {
       setSelectedFlow(null);
+    }
+
+    if (templateSelectedFlow?.id === id) {
+      setTemplateSelectedFlow(null);
     }
 
     refreshAll();
@@ -570,7 +575,14 @@ export default function Home() {
 
     return (
       <button
-        onClick={() => setActiveMenu(id)}
+        onClick={() => {
+          setActiveMenu(id);
+          if (id === "template") {
+            setTemplateSelectedFlow(null);
+            setShowCreateForm(false);
+            setEditingTriggerId(null);
+          }
+        }}
         className="sidebar-item"
         style={{
           width: "100%",
@@ -1606,12 +1618,153 @@ export default function Home() {
     );
   }
 
+
   function TemplatePage() {
+    if (templateSelectedFlow) {
+      const flowTriggers = allTriggers.filter(
+        (item) => item.flow_id === templateSelectedFlow.id
+      );
+
+      return (
+        <>
+          <Header
+            title={templateSelectedFlow.name}
+            description="Detail alur yang berisi semua trigger, jawaban, dan media yang sudah dibuat."
+          />
+
+          <div className="glass-card" style={styles.section}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 14,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <button
+                  onClick={() => {
+                    setTemplateSelectedFlow(null);
+                    setShowCreateForm(false);
+                    setEditingTriggerId(null);
+                  }}
+                  style={{
+                    ...styles.button,
+                    ...styles.ghostButton,
+                    marginBottom: 14,
+                    padding: "9px 13px",
+                  }}
+                >
+                  ← Kembali ke Daftar Alur
+                </button>
+
+                <p style={styles.muted}>Detail Alur</p>
+                <h2 style={{ marginTop: 7, fontSize: 30, letterSpacing: -0.8 }}>
+                  {templateSelectedFlow.name}
+                </h2>
+                <p style={{ ...styles.muted, marginTop: 8 }}>
+                  {flowTriggers.length} trigger tersimpan di alur ini.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    setSelectedFlow(templateSelectedFlow);
+                    setShowCreateForm(!showCreateForm);
+                  }}
+                  className="green-btn"
+                  style={styles.button}
+                >
+                  + Tambah Trigger
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingFlowId(templateSelectedFlow.id);
+                    setEditingFlowName(templateSelectedFlow.name);
+                  }}
+                  style={{ ...styles.button, ...styles.ghostButton }}
+                >
+                  Edit Alur
+                </button>
+
+                <button
+                  onClick={() => deleteFlow(templateSelectedFlow.id)}
+                  style={{ ...styles.button, ...styles.dangerButton }}
+                >
+                  Hapus Alur
+                </button>
+              </div>
+            </div>
+
+            {editingFlowId === templateSelectedFlow.id && (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 16,
+                  borderRadius: 22,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <label style={styles.label}>Nama Alur</label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <input
+                    value={editingFlowName}
+                    onChange={(e) => setEditingFlowName(e.target.value)}
+                    style={{ ...styles.input, flex: 1, minWidth: 240 }}
+                  />
+                  <button
+                    onClick={() => updateFlowName(templateSelectedFlow.id)}
+                    className="green-btn"
+                    style={styles.button}
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingFlowId(null);
+                      setEditingFlowName("");
+                    }}
+                    style={{ ...styles.button, ...styles.ghostButton }}
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {showCreateForm && selectedFlow?.id === templateSelectedFlow.id && (
+            <div className="glass-card" style={styles.section}>
+              <CreateTriggerBox />
+            </div>
+          )}
+
+          <div style={{ display: "grid", gap: 14 }}>
+            {flowTriggers.map((trigger) => (
+              <TriggerCard key={trigger.id} item={trigger} />
+            ))}
+
+            {flowTriggers.length === 0 && (
+              <div className="glass-card" style={styles.section}>
+                <p style={styles.muted}>
+                  Belum ada trigger di alur ini. Klik tombol + Tambah Trigger untuk membuat.
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      );
+    }
+
     return (
       <>
         <Header
           title="Template"
-          description="Semua alur dan trigger tampil dalam bentuk card. Jawaban dan foto/video langsung terlihat."
+          description="Pilih salah satu alur terlebih dahulu untuk melihat trigger di dalamnya."
         />
 
         <div className="glass-card" style={styles.section}>
@@ -1629,7 +1782,7 @@ export default function Home() {
               <input
                 value={newFlowName}
                 onChange={(e) => setNewFlowName(e.target.value)}
-                placeholder="Contoh: CS, Closing, Promo"
+                placeholder="Contoh: Produk Tas, Produk Lampu, Promo"
                 style={styles.input}
               />
             </div>
@@ -1649,14 +1802,109 @@ export default function Home() {
             <MiniStat label="Total Alur" value={flows.length} />
             <MiniStat label="Total Trigger" value={allTriggers.length} />
             <MiniStat label="Aktif" value={totalActiveTriggers} />
-            <MiniStat label="Alur Dipilih" value={selectedFlow?.name || "-"} />
+            <MiniStat label="Status" value="Siap Digunakan" />
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 20 }}>
-          {flows.map((flow) => (
-            <FlowCard key={flow.id} flow={flow} />
-          ))}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {flows.map((flow) => {
+            const flowTriggers = allTriggers.filter((item) => item.flow_id === flow.id);
+            const activeCount = flowTriggers.filter((item) => item.active).length;
+            const mediaCount = flowTriggers.filter(
+              (item) => getMediaFromItem(item).length > 0
+            ).length;
+
+            return (
+              <button
+                key={flow.id}
+                onClick={() => {
+                  setTemplateSelectedFlow(flow);
+                  setSelectedFlow(flow);
+                  setShowCreateForm(false);
+                  setEditingTriggerId(null);
+                }}
+                className="glass-card sidebar-item"
+                style={{
+                  textAlign: "left",
+                  padding: 22,
+                  cursor: "pointer",
+                  color: "white",
+                  border: "1px solid rgba(255,255,255,0.075)",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025))",
+                }}
+              >
+                <p style={styles.muted}>Alur Template</p>
+                <h2
+                  style={{
+                    marginTop: 9,
+                    fontSize: 25,
+                    letterSpacing: -0.7,
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {flow.name}
+                </h2>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginTop: 16,
+                  }}
+                >
+                  <span
+                    style={{
+                      ...styles.pill,
+                      background: "rgba(0,255,157,0.11)",
+                      color: "#00ff9d",
+                    }}
+                  >
+                    {flowTriggers.length} Trigger
+                  </span>
+
+                  <span
+                    style={{
+                      ...styles.pill,
+                      background: "rgba(255,255,255,0.06)",
+                      color: "#d1d5db",
+                    }}
+                  >
+                    {activeCount} Aktif
+                  </span>
+
+                  <span
+                    style={{
+                      ...styles.pill,
+                      background: "rgba(255,255,255,0.06)",
+                      color: "#d1d5db",
+                    }}
+                  >
+                    {mediaCount} Media
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 18,
+                    paddingTop: 16,
+                    borderTop: "1px solid rgba(255,255,255,0.07)",
+                    color: "#9ca3af",
+                    fontWeight: 800,
+                  }}
+                >
+                  Buka Alur →
+                </div>
+              </button>
+            );
+          })}
 
           {flows.length === 0 && (
             <div className="glass-card" style={styles.section}>
