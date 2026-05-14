@@ -181,140 +181,94 @@ export default function Home() {
   }, []);
 
   async function uploadMedia(file) {
-    setUploadingCount((prev) => prev + 1);
+  setUploadingCount((prev) => prev + 1);
 
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const text = await res.text();
+
+    let data;
     try {
-      const mediaType = file.type.startsWith("video/") ? "video" : "image";
-
-      const reader = new FileReader();
-
-      reader.onloadend = async () => {
-        try {
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              file: reader.result,
-              image: reader.result,
-              type: mediaType,
-            }),
-          });
-
-          const text = await res.text();
-
-let data;
-try {
-  data = JSON.parse(text);
-} catch {
-  throw new Error(text || "Server tidak mengembalikan JSON");
-}
-
-if (!res.ok || !data.success) {
-  throw new Error(data.message || "Upload gagal");
-}
-
-          const url = data.url || data.image;
-
-          setMedia((prev) => [
-            ...prev,
-            {
-              type: data.type || mediaType,
-              url,
-            },
-          ]);
-
-          if (mediaType === "image" && !image) {
-            setImage(url);
-          }
-        } catch (err) {
-          alert("Upload gagal: " + err.message);
-        } finally {
-          setUploadingCount((prev) => Math.max(prev - 1, 0));
-        }
-      };
-
-      reader.onerror = () => {
-        alert("Gagal membaca file");
-        setUploadingCount((prev) => Math.max(prev - 1, 0));
-      };
-
-      reader.readAsDataURL(file);
-    } catch (err) {
-      alert("Upload gagal: " + err.message);
-      setUploadingCount((prev) => Math.max(prev - 1, 0));
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(text || "Server tidak mengembalikan JSON");
     }
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Upload gagal");
+    }
+
+    const url = data.url || data.image;
+
+    setMedia((prev) => [
+      ...prev,
+      {
+        type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
+        url,
+      },
+    ]);
+
+    if (data.type === "image" && !image) {
+      setImage(url);
+    }
+  } catch (err) {
+    alert("Upload gagal: " + err.message);
+  } finally {
+    setUploadingCount((prev) => Math.max(prev - 1, 0));
   }
+}
 
   async function uploadEditMedia(file) {
-    setEditUploadingCount((prev) => prev + 1);
+  setEditUploadingCount((prev) => prev + 1);
 
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const text = await res.text();
+
+    let data;
     try {
-      const mediaType = file.type.startsWith("video/") ? "video" : "image";
-
-      const reader = new FileReader();
-
-      reader.onloadend = async () => {
-        try {
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              file: reader.result,
-              image: reader.result,
-              type: mediaType,
-            }),
-          });
-
-          const data = await res.json();
-
-          if (!data.success) {
-            alert(data.message || "Upload gagal");
-            return;
-          }
-
-          const url = data.url || data.image;
-
-          setEditMedia((prev) => [
-            ...prev,
-            {
-              type: data.type || mediaType,
-              url,
-            },
-          ]);
-
-          if (mediaType === "image" && !editImage) {
-            setEditImage(url);
-          }
-        } catch (err) {
-          alert("Upload gagal: " + err.message);
-        } finally {
-          setEditUploadingCount((prev) => Math.max(prev - 1, 0));
-        }
-      };
-
-      reader.onerror = () => {
-        alert("Gagal membaca file");
-        setEditUploadingCount((prev) => Math.max(prev - 1, 0));
-      };
-
-      reader.readAsDataURL(file);
-    } catch (err) {
-      alert("Upload gagal: " + err.message);
-      setEditUploadingCount((prev) => Math.max(prev - 1, 0));
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(text || "Server tidak mengembalikan JSON");
     }
-  }
 
-  function removeMedia(index) {
-    const updated = media.filter((_, i) => i !== index);
-    setMedia(updated);
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Upload gagal");
+    }
 
-    const firstImage = updated.find((m) => m.type === "image");
-    setImage(firstImage?.url || "");
+    const url = data.url || data.image;
+
+    setEditMedia((prev) => [
+      ...prev,
+      {
+        type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
+        url,
+      },
+    ]);
+
+    if (data.type === "image" && !editImage) {
+      setEditImage(url);
+    }
+  } catch (err) {
+    alert("Upload gagal: " + err.message);
+  } finally {
+    setEditUploadingCount((prev) => Math.max(prev - 1, 0));
   }
+}
 
   function removeEditMedia(index) {
     const updated = editMedia.filter((_, i) => i !== index);
