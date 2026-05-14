@@ -202,12 +202,18 @@ export default function Home() {
             }),
           });
 
-          const data = await res.json();
+          const text = await res.text();
 
-          if (!data.success) {
-            alert(data.message || "Upload gagal");
-            return;
-          }
+let data;
+try {
+  data = JSON.parse(text);
+} catch {
+  throw new Error(text || "Server tidak mengembalikan JSON");
+}
+
+if (!res.ok || !data.success) {
+  throw new Error(data.message || "Upload gagal");
+}
 
           const url = data.url || data.image;
 
