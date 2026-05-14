@@ -13,6 +13,9 @@ export default function Home() {
   const [editingFlowId, setEditingFlowId] = useState(null);
   const [editingFlowName, setEditingFlowName] = useState("");
 
+  const [copyTargetFlow, setCopyTargetFlow] = useState({});
+  const [copyingTriggerId, setCopyingTriggerId] = useState(null);
+
   const [triggers, setTriggers] = useState([]);
 
   const [keyword, setKeyword] = useState("");
@@ -422,6 +425,48 @@ export default function Home() {
     setEditUploadingCount(0);
 
     getTriggers();
+  }
+
+
+  async function duplicateTrigger(item, targetFlowId = null) {
+    try {
+      const targetFlow = targetFlowId || item.flow_id;
+
+      const payload = {
+        flow_id: targetFlow,
+        keyword: `${item.keyword} copy`,
+        response: item.response || "",
+        type: item.type || "Mengandung",
+        image: item.image || "",
+        media: item.media || [],
+        active: true,
+        is_flow_entry: item.is_flow_entry === true,
+      };
+
+      const { data, error } = await supabase
+        .from("triggers")
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        alert(error.message || "Gagal copy trigger");
+        return;
+      }
+
+      if (targetFlow === selectedFlow?.id) {
+        await getTriggers();
+      }
+
+      if (data) {
+        startEditTrigger(data);
+        setShowForm(false);
+      }
+
+      alert("Trigger berhasil disalin");
+    } catch (err) {
+      alert("Gagal duplicate: " + err.message);
+    }
   }
 
   async function toggleStatus(id, current) {
@@ -1156,7 +1201,7 @@ export default function Home() {
               <div>
                 <h2 style={{ letterSpacing: -0.5 }}>Trigger Library</h2>
                 <p style={{ ...styles.muted, marginTop: 6 }}>
-                  Preview balasan dan media langsung terlihat tanpa perlu edit.
+                  Preview balasan, media, dan duplicate trigger super cepat.
                 </p>
               </div>
             </div>
@@ -1642,6 +1687,36 @@ export default function Home() {
                               </button>
 
                               <button
+                                onClick={() => {
+                                  duplicateTrigger(item);
+                                }}
+                                style={{
+                                  ...styles.button,
+                                  background: "rgba(0,255,157,0.12)",
+                                  color: "#00ff9d",
+                                  border: "1px solid rgba(0,255,157,0.18)",
+                                  padding: "9px 12px",
+                                }}
+                              >
+                                Duplicate
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  setCopyingTriggerId(
+                                    copyingTriggerId === item.id ? null : item.id
+                                  )
+                                }
+                                style={{
+                                  ...styles.button,
+                                  ...styles.ghostButton,
+                                  padding: "9px 12px",
+                                }}
+                              >
+                                Copy Flow
+                              </button>
+
+                              <button
                                 onClick={() => toggleStatus(item.id, item.active)}
                                 style={{
                                   ...styles.button,
@@ -1662,6 +1737,85 @@ export default function Home() {
                               >
                                 Hapus
                               </button>
+
+                              {copyingTriggerId === item.id && (
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    marginTop: 10,
+                                    padding: 12,
+                                    borderRadius: 16,
+                                    background: "rgba(255,255,255,0.06)",
+                                    border:
+                                      "1px solid rgba(255,255,255,0.08)",
+                                  }}
+                                >
+                                  <p
+                                    style={{
+                                      fontSize: 12,
+                                      color: "#9ca3af",
+                                      marginBottom: 8,
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    COPY KE ALUR
+                                  </p>
+
+                                  <select
+                                    value={copyTargetFlow[item.id] || ""}
+                                    onChange={(e) =>
+                                      setCopyTargetFlow({
+                                        ...copyTargetFlow,
+                                        [item.id]: e.target.value,
+                                      })
+                                    }
+                                    style={{
+                                      ...styles.input,
+                                      marginBottom: 10,
+                                      padding: "10px 12px",
+                                    }}
+                                  >
+                                    <option value="">
+                                      Pilih alur tujuan
+                                    </option>
+
+                                    {flows.map((flow) => (
+                                      <option
+                                        key={flow.id}
+                                        value={flow.id}
+                                      >
+                                        {flow.name}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <button
+                                    onClick={() => {
+                                      const target =
+                                        copyTargetFlow[item.id];
+
+                                      if (!target) {
+                                        return alert(
+                                          "Pilih alur tujuan dulu"
+                                        );
+                                      }
+
+                                      duplicateTrigger(
+                                        item,
+                                        Number(target)
+                                      );
+                                    }}
+                                    className="green-btn"
+                                    style={{
+                                      ...styles.button,
+                                      width: "100%",
+                                      padding: "10px 12px",
+                                    }}
+                                  >
+                                    Salin Trigger
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </>
