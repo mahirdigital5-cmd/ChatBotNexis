@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 
-const WA_API_URL = "/api/wa";
+const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
 
 export default function Home() {
   const [flows, setFlows] = useState([]);
@@ -45,10 +45,11 @@ export default function Home() {
   const [qrData, setQrData] = useState(null);
   const [showQr, setShowQr] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
-  const [waError, setWaError] = useState("");
+  const [qrMessage, setQrMessage] = useState("");
 
   const uploading = uploadingCount > 0;
   const editUploading = editUploadingCount > 0;
+
 
   const totalActiveTriggers = useMemo(
     () => allTriggers.filter((item) => item.active).length,
@@ -104,50 +105,11 @@ export default function Home() {
     return "Tanpa media";
   }
 
-  async function readJsonSafe(res) {
-    const text = await res.text();
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      return {
-        success: false,
-        message: text || "Server tidak mengembalikan JSON",
-      };
-    }
-  }
-
-  async function callWaApi(action) {
-    let res;
-
-    try {
-      res = await fetch(`${WA_API_URL}/${action}?t=${Date.now()}`, {
-        method: "GET",
-        cache: "no-store",
-      });
-    } catch {
-      throw new Error("Gagal fetch API Vercel. Pastikan file app/api/wa/[action]/route.js sudah dibuat dan sudah deploy ulang.");
-    }
-
-    const data = await readJsonSafe(res);
-
-    if (!res.ok || data.success === false) {
-      throw new Error(data.message || `WA API error: ${res.status}`);
-    }
-
-    return data;
-  }
-
   async function getFlows() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("flows")
       .select("*")
       .order("id", { ascending: false });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
 
     const flowData = data || [];
     setFlows(flowData);
@@ -158,15 +120,10 @@ export default function Home() {
   }
 
   async function getAllTriggers() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("triggers")
       .select("*")
       .order("id", { ascending: false });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
 
     setAllTriggers(data || []);
   }
@@ -177,42 +134,21 @@ export default function Home() {
   }
 
   async function addFlow() {
-    if (!newFlowName.trim()) return alert("Isi nama alur");
+    if (!newFlowName) return alert("Isi nama alur");
 
-    const { error } = await supabase
-      .from("flows")
-      .insert([{ name: newFlowName.trim() }]);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    await supabase.from("flows").insert([{ name: newFlowName }]);
 
     setNewFlowName("");
     refreshAll();
   }
 
   async function updateFlowName(id) {
-    if (!editingFlowName.trim()) return alert("Nama alur tidak boleh kosong");
+    if (!editingFlowName) return alert("Nama alur tidak boleh kosong");
 
-    const cleanName = editingFlowName.trim();
-
-    const { error } = await supabase
-      .from("flows")
-      .update({ name: cleanName })
-      .eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    await supabase.from("flows").update({ name: editingFlowName }).eq("id", id);
 
     if (selectedFlow?.id === id) {
-      setSelectedFlow({ ...selectedFlow, name: cleanName });
-    }
-
-    if (templateSelectedFlow?.id === id) {
-      setTemplateSelectedFlow({ ...templateSelectedFlow, name: cleanName });
+      setSelectedFlow({ ...selectedFlow, name: editingFlowName });
     }
 
     setEditingFlowId(null);
@@ -221,57 +157,56 @@ export default function Home() {
   }
 
   async function deleteFlow(id) {
-    const ok = confirm(
-      "Yakin hapus alur? Semua trigger dan session di alur ini ikut terhapus."
-    );
+  const ok = confirm(
+    "Yakin hapus alur? Semua trigger dan session di alur ini ikut terhapus."
+  );
 
-    if (!ok) return;
+  if (!ok) return;
 
-    try {
-      const sessionDelete = await supabase
-        .from("sessions")
-        .delete()
-        .eq("flow_id", id);
+  try {
+    const sessionDelete = await supabase
+      .from("sessions")
+      .delete()
+      .eq("flow_id", id);
 
-      if (sessionDelete.error) {
-        alert(sessionDelete.error.message);
-        return;
-      }
-
-      const triggerDelete = await supabase
-        .from("triggers")
-        .delete()
-        .eq("flow_id", id);
-
-      if (triggerDelete.error) {
-        alert(triggerDelete.error.message);
-        return;
-      }
-
-      const flowDelete = await supabase
-        .from("flows")
-        .delete()
-        .eq("id", id);
-
-      if (flowDelete.error) {
-        alert(flowDelete.error.message);
-        return;
-      }
-
-      if (selectedFlow?.id === id) {
-        setSelectedFlow(null);
-      }
-
-      if (templateSelectedFlow?.id === id) {
-        setTemplateSelectedFlow(null);
-      }
-
-      refreshAll();
-    } catch (err) {
-      alert(err.message);
+    if (sessionDelete.error) {
+      alert(sessionDelete.error.message);
+      return;
     }
-  }
 
+    const triggerDelete = await supabase
+      .from("triggers")
+      .delete()
+      .eq("flow_id", id);
+
+    if (triggerDelete.error) {
+      alert(triggerDelete.error.message);
+      return;
+    }
+
+    const flowDelete = await supabase
+      .from("flows")
+      .delete()
+      .eq("id", id);
+
+    if (flowDelete.error) {
+      alert(flowDelete.error.message);
+      return;
+    }
+
+    if (selectedFlow?.id === id) {
+      setSelectedFlow(null);
+    }
+
+    if (templateSelectedFlow?.id === id) {
+      setTemplateSelectedFlow(null);
+    }
+
+    refreshAll();
+  } catch (err) {
+    alert(err.message);
+  }
+}
   function selectFlow(flow) {
     setSelectedFlow(flow);
     setShowCreateForm(false);
@@ -281,23 +216,34 @@ export default function Home() {
 
   async function getWaStatus() {
     try {
-      const data = await callWaApi("qr-json");
+      const res = await fetch(`${WA_ENGINE_URL}/qr-json?t=${Date.now()}`, {
+        cache: "no-store",
+      });
 
-      setWaError("");
-      setWaStatus(Boolean(data.connected));
+      const data = await res.json();
+
+      setWaStatus(data.connected);
 
       if (data.connected) {
         setQrData(null);
         setQrLoading(false);
+        setQrMessage("WhatsApp sudah terhubung.");
       } else {
         setQrData(data.qr || null);
-        if (data.qr) setQrLoading(false);
+
+        if (data.qr) {
+          setQrLoading(false);
+          setQrMessage("QR siap discan.");
+        }
       }
+
+      return data;
     } catch (err) {
       setWaStatus(false);
       setQrData(null);
       setQrLoading(false);
-      setWaError(err.message || "Gagal mengambil status WhatsApp");
+      setQrMessage("Gagal mengambil status QR: " + err.message);
+      return null;
     }
   }
 
@@ -307,21 +253,57 @@ export default function Home() {
       setQrLoading(true);
       setQrData(null);
       setWaStatus(false);
-      setWaError("");
+      setQrMessage("Meminta QR baru ke WA Engine...");
 
-      await callWaApi("connect");
+      const connectRes = await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`, {
+        cache: "no-store",
+      });
 
-      setTimeout(getWaStatus, 1500);
-      setTimeout(getWaStatus, 3000);
-      setTimeout(getWaStatus, 5000);
-      setTimeout(() => {
-        getWaStatus();
+      let connectData = null;
+      try {
+        connectData = await connectRes.json();
+      } catch {}
+
+      if (!connectRes.ok) {
+        throw new Error(connectData?.message || "Gagal request QR ke WA Engine");
+      }
+
+      setQrMessage("Menunggu QR dibuat. Biasanya 5-20 detik...");
+
+      let foundQr = false;
+
+      for (let i = 0; i < 23; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const data = await getWaStatus();
+
+        if (data?.connected) {
+          foundQr = true;
+          setQrLoading(false);
+          setQrMessage("WhatsApp sudah terhubung.");
+          break;
+        }
+
+        if (data?.qr) {
+          foundQr = true;
+          setQrLoading(false);
+          setQrMessage("QR siap discan.");
+          break;
+        }
+
+        setQrMessage(`Masih menunggu QR... ${i + 1}/23`);
+      }
+
+      if (!foundQr) {
         setQrLoading(false);
-      }, 7000);
+        setQrMessage(
+          "QR belum muncul di dashboard. Coba tombol Buka QR Langsung atau restart WA Engine."
+        );
+      }
     } catch (err) {
       setQrLoading(false);
-      setWaError(err.message || "Gagal membuat QR");
-      alert("Gagal membuat QR: " + (err.message || "Unknown error"));
+      setQrMessage("Gagal membuat QR: " + err.message);
+      alert("Gagal membuat QR: " + err.message);
     }
   }
 
@@ -329,16 +311,12 @@ export default function Home() {
     const ok = confirm("Nonaktifkan / logout WhatsApp?");
     if (!ok) return;
 
-    try {
-      await callWaApi("logout");
-      setShowQr(false);
-      setQrLoading(false);
-      setQrData(null);
-      setTimeout(getWaStatus, 2000);
-    } catch (err) {
-      setWaError(err.message || "Gagal logout WhatsApp");
-      alert("Gagal logout WhatsApp: " + (err.message || "Unknown error"));
-    }
+    await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`);
+    setShowQr(false);
+    setQrLoading(false);
+    setQrData(null);
+    setQrMessage("");
+    setTimeout(getWaStatus, 2000);
   }
 
   useEffect(() => {
@@ -361,17 +339,20 @@ export default function Home() {
         body: formData,
       });
 
-      const data = await readJsonSafe(res);
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || "Server tidak mengembalikan JSON");
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Upload gagal");
       }
 
       const url = data.url || data.image;
-
-      if (!url) {
-        throw new Error("URL media kosong dari server");
-      }
 
       setMedia((prev) => [
         ...prev,
@@ -381,7 +362,7 @@ export default function Home() {
         },
       ]);
 
-      if ((data.type === "image" || file.type.startsWith("image/")) && !image) {
+      if (data.type === "image" && !image) {
         setImage(url);
       }
     } catch (err) {
@@ -403,17 +384,20 @@ export default function Home() {
         body: formData,
       });
 
-      const data = await readJsonSafe(res);
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || "Server tidak mengembalikan JSON");
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Upload gagal");
       }
 
       const url = data.url || data.image;
-
-      if (!url) {
-        throw new Error("URL media kosong dari server");
-      }
 
       setEditMedia((prev) => [
         ...prev,
@@ -423,7 +407,7 @@ export default function Home() {
         },
       ]);
 
-      if ((data.type === "image" || file.type.startsWith("image/")) && !editImage) {
+      if (data.type === "image" && !editImage) {
         setEditImage(url);
       }
     } catch (err) {
@@ -458,16 +442,16 @@ export default function Home() {
 
     const finalResponse = joinResponses(responseList);
 
-    if (!keyword.trim() || (!finalResponse && media.length === 0)) {
+    if (!keyword || (!finalResponse && media.length === 0)) {
       return alert("Isi keyword dan respon/foto/video");
     }
 
     const firstImage = media.find((m) => m.type === "image");
 
-    const { error } = await supabase.from("triggers").insert([
+    await supabase.from("triggers").insert([
       {
         flow_id: selectedFlow.id,
-        keyword: keyword.trim(),
+        keyword,
         response: finalResponse,
         type,
         image: firstImage?.url || "",
@@ -476,11 +460,6 @@ export default function Home() {
         is_flow_entry: isFlowEntry,
       },
     ]);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
 
     setKeyword("");
     setResponse("");
@@ -516,16 +495,16 @@ export default function Home() {
 
     const finalEditResponse = joinResponses(editResponseList);
 
-    if (!editKeyword.trim() || (!finalEditResponse && editMedia.length === 0)) {
+    if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
       return alert("Keyword dan respon/foto/video tidak boleh kosong");
     }
 
     const firstImage = editMedia.find((m) => m.type === "image");
 
-    const { error } = await supabase
+    await supabase
       .from("triggers")
       .update({
-        keyword: editKeyword.trim(),
+        keyword: editKeyword,
         response: finalEditResponse,
         type: editType,
         image: firstImage?.url || "",
@@ -533,11 +512,6 @@ export default function Home() {
         is_flow_entry: editIsFlowEntry,
       })
       .eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
 
     setEditingTriggerId(null);
     setEditKeyword("");
@@ -562,7 +536,7 @@ export default function Home() {
         response: item.response || "",
         type: item.type || "Mengandung",
         image: item.image || "",
-        media: getMediaFromItem(item),
+        media: item.media || [],
         active: true,
         is_flow_entry: item.is_flow_entry === true,
       };
@@ -586,7 +560,6 @@ export default function Home() {
         startEditTrigger(data);
       }
 
-      setCopyingTriggerId(null);
       alert("Trigger berhasil disalin");
     } catch (err) {
       alert("Gagal duplicate: " + err.message);
@@ -594,16 +567,7 @@ export default function Home() {
   }
 
   async function toggleStatus(id, current) {
-    const { error } = await supabase
-      .from("triggers")
-      .update({ active: !current })
-      .eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
+    await supabase.from("triggers").update({ active: !current }).eq("id", id);
     getAllTriggers();
   }
 
@@ -611,13 +575,7 @@ export default function Home() {
     const ok = confirm("Yakin hapus trigger ini?");
     if (!ok) return;
 
-    const { error } = await supabase.from("triggers").delete().eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
+    await supabase.from("triggers").delete().eq("id", id);
     getAllTriggers();
   }
 
@@ -792,11 +750,6 @@ export default function Home() {
             {title}
           </h1>
           <p style={{ ...styles.muted, lineHeight: 1.7 }}>{description}</p>
-          {waError && (
-            <p style={{ color: "#ff7b90", marginTop: 10, fontSize: 13, lineHeight: 1.5 }}>
-              Error WA: {waError}
-            </p>
-          )}
         </div>
 
         <span
@@ -914,6 +867,7 @@ export default function Home() {
                     if (showQr) {
                       setShowQr(false);
                       setQrLoading(false);
+                      setQrMessage("");
                       return;
                     }
 
@@ -954,8 +908,24 @@ export default function Home() {
                     lineHeight: 1.6,
                   }}
                 >
-                  Scan QR ini dari WhatsApp untuk menghubungkan perangkat.
+                  {qrMessage || "Scan QR ini dari WhatsApp untuk menghubungkan perangkat."}
                 </p>
+
+                <a
+                  href={`${WA_ENGINE_URL}/qr?t=${Date.now()}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    ...styles.button,
+                    ...styles.ghostButton,
+                    display: "block",
+                    textAlign: "center",
+                    textDecoration: "none",
+                    marginTop: 12,
+                  }}
+                >
+                  Buka QR Langsung
+                </a>
               </div>
             ) : (
               <div
@@ -976,31 +946,50 @@ export default function Home() {
                     {qrLoading ? "⏳" : "▦"}
                   </p>
                   <p style={styles.muted}>
-                    {qrLoading
-                      ? "Sedang membuat QR. Tunggu beberapa detik..."
-                      : waStatus
-                      ? "WhatsApp sudah terhubung."
-                      : "Klik Scan QR untuk membuat barcode perangkat."}
+                    {qrMessage ||
+                      (qrLoading
+                        ? "Sedang membuat QR. Tunggu beberapa detik..."
+                        : waStatus
+                        ? "WhatsApp sudah terhubung."
+                        : "Klik Scan QR untuk membuat barcode perangkat.")}
                   </p>
 
-                  {waError && (
-                    <p style={{ color: "#ff7b90", fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>
-                      {waError}
-                    </p>
-                  )}
-
-                  {showQr && !qrLoading && !qrData && !waStatus && (
-                    <button
-                      onClick={connectWa}
-                      className="green-btn"
+                  {showQr && !waStatus && (
+                    <div
                       style={{
-                        ...styles.button,
+                        display: "flex",
+                        gap: 8,
+                        justifyContent: "center",
+                        flexWrap: "wrap",
                         marginTop: 14,
-                        padding: "9px 13px",
                       }}
                     >
-                      Coba Buat QR Lagi
-                    </button>
+                      <button
+                        onClick={connectWa}
+                        className="green-btn"
+                        style={{
+                          ...styles.button,
+                          padding: "9px 13px",
+                        }}
+                      >
+                        Buat QR Lagi
+                      </button>
+
+                      <a
+                        href={`${WA_ENGINE_URL}/qr?t=${Date.now()}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          ...styles.button,
+                          ...styles.ghostButton,
+                          display: "inline-block",
+                          textDecoration: "none",
+                          padding: "9px 13px",
+                        }}
+                      >
+                        Buka QR Langsung
+                      </a>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1380,10 +1369,7 @@ export default function Home() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns:
-              itemMedia.length === 1
-                ? "minmax(0, 220px)"
-                : "repeat(2, minmax(0, 160px))",
+            gridTemplateColumns: itemMedia.length === 1 ? "minmax(0, 220px)" : "repeat(2, minmax(0, 160px))",
             gap: 10,
           }}
         >
@@ -1813,6 +1799,7 @@ export default function Home() {
     );
   }
 
+
   function TemplatePage() {
     if (templateSelectedFlow) {
       const flowTriggers = allTriggers.filter(
@@ -2154,6 +2141,7 @@ export default function Home() {
     );
   }
 
+
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -2229,130 +2217,4 @@ export default function Home() {
       `}</style>
     </main>
   );
-}
-
-================================================
-FILE 2: app/api/wa/[action]/route.js
-================================================
-
-const WA_ENGINE_URL =
-  process.env.WA_ENGINE_URL || "https://wa-engine-production-8ebe.up.railway.app";
-
-const ALLOWED_ACTIONS = new Set(["qr-json", "connect", "logout"]);
-
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-export const revalidate = 0;
-
-async function readBodySafe(res) {
-  const text = await res.text();
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {
-      success: res.ok,
-      message: text || "WA Engine tidak mengembalikan JSON",
-    };
-  }
-}
-
-function json(data, status = 200) {
-  return Response.json(data, {
-    status,
-    headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-    },
-  });
-}
-
-export async function GET(request, context) {
-  let timeout;
-
-  try {
-    const rawParams = context?.params;
-    const params =
-      rawParams && typeof rawParams.then === "function" ? await rawParams : rawParams;
-
-    const action = params?.action;
-
-    if (!ALLOWED_ACTIONS.has(action)) {
-      return json(
-        {
-          success: false,
-          message: "Action WA tidak valid",
-        },
-        400
-      );
-    }
-
-    const targetUrl = `${WA_ENGINE_URL}/${action}?t=${Date.now()}`;
-    const controller = new AbortController();
-
-    timeout = setTimeout(() => controller.abort(), 25000);
-
-    let res;
-    try {
-      res = await fetch(targetUrl, {
-        method: "GET",
-        cache: "no-store",
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json,text/plain,*/*",
-          "User-Agent": "Nexis-Vercel-Proxy/1.0",
-        },
-      });
-    } catch (err) {
-      const isAbort = err?.name === "AbortError";
-
-      return json(
-        {
-          success: false,
-          message: isAbort
-            ? "WA Engine timeout. Cek Railway apakah sedang sleep/down."
-            : "Gagal menghubungi WA Engine. Cek URL Railway / WA_ENGINE_URL.",
-          detail: err?.message || String(err),
-        },
-        502
-      );
-    } finally {
-      if (timeout) clearTimeout(timeout);
-    }
-
-    const data = await readBodySafe(res);
-
-    if (!res.ok) {
-      return json(
-        {
-          success: false,
-          message: data?.message || `WA Engine error ${res.status}`,
-          detail: data,
-        },
-        res.status
-      );
-    }
-
-    if (data?.success === false) {
-      return json(
-        {
-          success: false,
-          message: data?.message || "WA Engine mengembalikan status gagal",
-          detail: data,
-        },
-        502
-      );
-    }
-
-    return json(data, 200);
-  } catch (err) {
-    if (timeout) clearTimeout(timeout);
-
-    return json(
-      {
-        success: false,
-        message: err?.message || "Gagal menghubungi WA Engine",
-      },
-      500
-    );
-  }
 }
