@@ -48,10 +48,6 @@ export default function Home() {
   const uploading = uploadingCount > 0;
   const editUploading = editUploadingCount > 0;
 
-  const selectedFlowTriggers = useMemo(() => {
-    if (!selectedFlow?.id) return [];
-    return allTriggers.filter((item) => item.flow_id === selectedFlow.id);
-  }, [allTriggers, selectedFlow]);
 
   const totalActiveTriggers = useMemo(
     () => allTriggers.filter((item) => item.active).length,
@@ -1302,7 +1298,7 @@ export default function Home() {
     const answers = getResponseParts(item.response);
 
     if (editingTriggerId === item.id) {
-      return {EditTriggerCard({ item })};
+      return EditTriggerCard({ item });
     }
 
     return (
@@ -1993,23 +1989,6 @@ export default function Home() {
     );
   }
 
-  function MiniStat({ label, value }) {
-    return (
-      <div
-        style={{
-          padding: 16,
-          borderRadius: 20,
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.07)",
-        }}
-      >
-        <p style={{ ...styles.muted, fontSize: 13 }}>{label}</p>
-        <h3 style={{ marginTop: 7, overflow: "hidden", textOverflow: "ellipsis" }}>
-          {value}
-        </h3>
-      </div>
-    );
-  }
 
   return (
     <main style={styles.page}>
