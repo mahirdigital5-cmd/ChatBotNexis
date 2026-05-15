@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 
-const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
+const WA_API_URL = "/api/wa";
 
 export default function Home() {
   const [flows, setFlows] = useState([]);
@@ -45,10 +45,10 @@ export default function Home() {
   const [qrData, setQrData] = useState(null);
   const [showQr, setShowQr] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
+  const [waError, setWaError] = useState("");
 
   const uploading = uploadingCount > 0;
   const editUploading = editUploadingCount > 0;
-
 
   const totalActiveTriggers = useMemo(
     () => allTriggers.filter((item) => item.active).length,
@@ -104,11 +104,44 @@ export default function Home() {
     return "Tanpa media";
   }
 
+  async function safeJson(res) {
+    const text = await res.text();
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {
+        success: false,
+        message: text || "Server tidak mengembalikan JSON",
+      };
+    }
+  }
+
+  async function callWaApi(action) {
+    const res = await fetch(`${WA_API_URL}/${action}?t=${Date.now()}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    const data = await safeJson(res);
+
+    if (!res.ok || data.success === false) {
+      throw new Error(data.message || `WA API error: ${res.status}`);
+    }
+
+    return data;
+  }
+
   async function getFlows() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("flows")
       .select("*")
       .order("id", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     const flowData = data || [];
     setFlows(flowData);
@@ -119,10 +152,15 @@ export default function Home() {
   }
 
   async function getAllTriggers() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("triggers")
       .select("*")
       .order("id", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     setAllTriggers(data || []);
   }
@@ -133,21 +171,37 @@ export default function Home() {
   }
 
   async function addFlow() {
-    if (!newFlowName) return alert("Isi nama alur");
+    if (!newFlowName.trim()) return alert("Isi nama alur");
 
-    await supabase.from("flows").insert([{ name: newFlowName }]);
+    const { error } = await supabase.from("flows").insert([{ name: newFlowName.trim() }]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     setNewFlowName("");
     refreshAll();
   }
 
   async function updateFlowName(id) {
-    if (!editingFlowName) return alert("Nama alur tidak boleh kosong");
+    if (!editingFlowName.trim()) return alert("Nama alur tidak boleh kosong");
 
-    await supabase.from("flows").update({ name: editingFlowName }).eq("id", id);
+    const cleanName = editingFlowName.trim();
+
+    const { error } = await supabase.from("flows").update({ name: cleanName }).eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     if (selectedFlow?.id === id) {
-      setSelectedFlow({ ...selectedFlow, name: editingFlowName });
+      setSelectedFlow({ ...selectedFlow, name: cleanName });
+    }
+
+    if (templateSelectedFlow?.id === id) {
+      setTemplateSelectedFlow({ ...templateSelectedFlow, name: cleanName });
     }
 
     setEditingFlowId(null);
@@ -156,56 +210,57 @@ export default function Home() {
   }
 
   async function deleteFlow(id) {
-  const ok = confirm(
-    "Yakin hapus alur? Semua trigger dan session di alur ini ikut terhapus."
-  );
+    const ok = confirm(
+      "Yakin hapus alur? Semua trigger dan session di alur ini ikut terhapus."
+    );
 
-  if (!ok) return;
+    if (!ok) return;
 
-  try {
-    const sessionDelete = await supabase
-      .from("sessions")
-      .delete()
-      .eq("flow_id", id);
+    try {
+      const sessionDelete = await supabase
+        .from("sessions")
+        .delete()
+        .eq("flow_id", id);
 
-    if (sessionDelete.error) {
-      alert(sessionDelete.error.message);
-      return;
+      if (sessionDelete.error) {
+        alert(sessionDelete.error.message);
+        return;
+      }
+
+      const triggerDelete = await supabase
+        .from("triggers")
+        .delete()
+        .eq("flow_id", id);
+
+      if (triggerDelete.error) {
+        alert(triggerDelete.error.message);
+        return;
+      }
+
+      const flowDelete = await supabase
+        .from("flows")
+        .delete()
+        .eq("id", id);
+
+      if (flowDelete.error) {
+        alert(flowDelete.error.message);
+        return;
+      }
+
+      if (selectedFlow?.id === id) {
+        setSelectedFlow(null);
+      }
+
+      if (templateSelectedFlow?.id === id) {
+        setTemplateSelectedFlow(null);
+      }
+
+      refreshAll();
+    } catch (err) {
+      alert(err.message);
     }
-
-    const triggerDelete = await supabase
-      .from("triggers")
-      .delete()
-      .eq("flow_id", id);
-
-    if (triggerDelete.error) {
-      alert(triggerDelete.error.message);
-      return;
-    }
-
-    const flowDelete = await supabase
-      .from("flows")
-      .delete()
-      .eq("id", id);
-
-    if (flowDelete.error) {
-      alert(flowDelete.error.message);
-      return;
-    }
-
-    if (selectedFlow?.id === id) {
-      setSelectedFlow(null);
-    }
-
-    if (templateSelectedFlow?.id === id) {
-      setTemplateSelectedFlow(null);
-    }
-
-    refreshAll();
-  } catch (err) {
-    alert(err.message);
   }
-}
+
   function selectFlow(flow) {
     setSelectedFlow(flow);
     setShowCreateForm(false);
@@ -215,24 +270,23 @@ export default function Home() {
 
   async function getWaStatus() {
     try {
-      const res = await fetch(`${WA_ENGINE_URL}/qr-json?t=${Date.now()}`);
-      const data = await res.json();
+      const data = await callWaApi("qr-json");
 
-      setWaStatus(data.connected);
+      setWaError("");
+      setWaStatus(Boolean(data.connected));
 
       if (data.connected) {
         setQrData(null);
         setQrLoading(false);
       } else {
         setQrData(data.qr || null);
-        if (data.qr) {
-          setQrLoading(false);
-        }
+        if (data.qr) setQrLoading(false);
       }
-    } catch {
+    } catch (err) {
       setWaStatus(false);
       setQrData(null);
       setQrLoading(false);
+      setWaError(err.message || "Gagal mengambil status WhatsApp");
     }
   }
 
@@ -242,8 +296,9 @@ export default function Home() {
       setQrLoading(true);
       setQrData(null);
       setWaStatus(false);
+      setWaError("");
 
-      await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`);
+      await callWaApi("connect");
 
       setTimeout(getWaStatus, 1500);
       setTimeout(getWaStatus, 3000);
@@ -254,7 +309,8 @@ export default function Home() {
       }, 7000);
     } catch (err) {
       setQrLoading(false);
-      alert("Gagal membuat QR: " + err.message);
+      setWaError(err.message || "Gagal membuat QR");
+      alert("Gagal membuat QR: " + (err.message || "Unknown error"));
     }
   }
 
@@ -262,11 +318,16 @@ export default function Home() {
     const ok = confirm("Nonaktifkan / logout WhatsApp?");
     if (!ok) return;
 
-    await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`);
-    setShowQr(false);
-    setQrLoading(false);
-    setQrData(null);
-    setTimeout(getWaStatus, 2000);
+    try {
+      await callWaApi("logout");
+      setShowQr(false);
+      setQrLoading(false);
+      setQrData(null);
+      setTimeout(getWaStatus, 2000);
+    } catch (err) {
+      setWaError(err.message || "Gagal logout WhatsApp");
+      alert("Gagal logout WhatsApp: " + (err.message || "Unknown error"));
+    }
   }
 
   useEffect(() => {
@@ -312,7 +373,7 @@ export default function Home() {
         },
       ]);
 
-      if (data.type === "image" && !image) {
+      if ((data.type === "image" || file.type.startsWith("image/")) && !image) {
         setImage(url);
       }
     } catch (err) {
@@ -357,7 +418,7 @@ export default function Home() {
         },
       ]);
 
-      if (data.type === "image" && !editImage) {
+      if ((data.type === "image" || file.type.startsWith("image/")) && !editImage) {
         setEditImage(url);
       }
     } catch (err) {
@@ -392,16 +453,16 @@ export default function Home() {
 
     const finalResponse = joinResponses(responseList);
 
-    if (!keyword || (!finalResponse && media.length === 0)) {
+    if (!keyword.trim() || (!finalResponse && media.length === 0)) {
       return alert("Isi keyword dan respon/foto/video");
     }
 
     const firstImage = media.find((m) => m.type === "image");
 
-    await supabase.from("triggers").insert([
+    const { error } = await supabase.from("triggers").insert([
       {
         flow_id: selectedFlow.id,
-        keyword,
+        keyword: keyword.trim(),
         response: finalResponse,
         type,
         image: firstImage?.url || "",
@@ -410,6 +471,11 @@ export default function Home() {
         is_flow_entry: isFlowEntry,
       },
     ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     setKeyword("");
     setResponse("");
@@ -445,16 +511,16 @@ export default function Home() {
 
     const finalEditResponse = joinResponses(editResponseList);
 
-    if (!editKeyword || (!finalEditResponse && editMedia.length === 0)) {
+    if (!editKeyword.trim() || (!finalEditResponse && editMedia.length === 0)) {
       return alert("Keyword dan respon/foto/video tidak boleh kosong");
     }
 
     const firstImage = editMedia.find((m) => m.type === "image");
 
-    await supabase
+    const { error } = await supabase
       .from("triggers")
       .update({
-        keyword: editKeyword,
+        keyword: editKeyword.trim(),
         response: finalEditResponse,
         type: editType,
         image: firstImage?.url || "",
@@ -462,6 +528,11 @@ export default function Home() {
         is_flow_entry: editIsFlowEntry,
       })
       .eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     setEditingTriggerId(null);
     setEditKeyword("");
@@ -486,7 +557,7 @@ export default function Home() {
         response: item.response || "",
         type: item.type || "Mengandung",
         image: item.image || "",
-        media: item.media || [],
+        media: getMediaFromItem(item),
         active: true,
         is_flow_entry: item.is_flow_entry === true,
       };
@@ -510,6 +581,7 @@ export default function Home() {
         startEditTrigger(data);
       }
 
+      setCopyingTriggerId(null);
       alert("Trigger berhasil disalin");
     } catch (err) {
       alert("Gagal duplicate: " + err.message);
@@ -517,7 +589,13 @@ export default function Home() {
   }
 
   async function toggleStatus(id, current) {
-    await supabase.from("triggers").update({ active: !current }).eq("id", id);
+    const { error } = await supabase.from("triggers").update({ active: !current }).eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
     getAllTriggers();
   }
 
@@ -525,7 +603,13 @@ export default function Home() {
     const ok = confirm("Yakin hapus trigger ini?");
     if (!ok) return;
 
-    await supabase.from("triggers").delete().eq("id", id);
+    const { error } = await supabase.from("triggers").delete().eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
     getAllTriggers();
   }
 
@@ -700,6 +784,11 @@ export default function Home() {
             {title}
           </h1>
           <p style={{ ...styles.muted, lineHeight: 1.7 }}>{description}</p>
+          {waError && (
+            <p style={{ color: "#ff7b90", marginTop: 10, fontSize: 13, lineHeight: 1.5 }}>
+              Error WA: {waError}
+            </p>
+          )}
         </div>
 
         <span
@@ -885,6 +974,12 @@ export default function Home() {
                       ? "WhatsApp sudah terhubung."
                       : "Klik Scan QR untuk membuat barcode perangkat."}
                   </p>
+
+                  {waError && (
+                    <p style={{ color: "#ff7b90", fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>
+                      {waError}
+                    </p>
+                  )}
 
                   {showQr && !qrLoading && !qrData && !waStatus && (
                     <button
@@ -1707,7 +1802,6 @@ export default function Home() {
     );
   }
 
-
   function TemplatePage() {
     if (templateSelectedFlow) {
       const flowTriggers = allTriggers.filter(
@@ -2049,7 +2143,6 @@ export default function Home() {
     );
   }
 
-
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -2125,4 +2218,90 @@ export default function Home() {
       `}</style>
     </main>
   );
+}
+
+================================================
+FILE 2: app/api/wa/[action]/route.js
+================================================
+
+const WA_ENGINE_URL =
+  process.env.WA_ENGINE_URL || "https://wa-engine-production-8ebe.up.railway.app";
+
+const ALLOWED_ACTIONS = new Set(["qr-json", "connect", "logout"]);
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function GET(request, { params }) {
+  try {
+    const action = params?.action;
+
+    if (!ALLOWED_ACTIONS.has(action)) {
+      return Response.json(
+        {
+          success: false,
+          message: "Action WA tidak valid",
+        },
+        { status: 400 }
+      );
+    }
+
+    const targetUrl = `${WA_ENGINE_URL}/${action}?t=${Date.now()}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
+    const res = await fetch(targetUrl, {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+      },
+    });
+
+    clearTimeout(timeout);
+
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {
+        success: res.ok,
+        message: text || "WA Engine tidak mengembalikan JSON",
+      };
+    }
+
+    if (!res.ok) {
+      return Response.json(
+        {
+          success: false,
+          message: data?.message || `WA Engine error ${res.status}`,
+          detail: data,
+        },
+        { status: res.status }
+      );
+    }
+
+    return Response.json(data, {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (err) {
+    const isAbort = err?.name === "AbortError";
+
+    return Response.json(
+      {
+        success: false,
+        message: isAbort
+          ? "WA Engine timeout. Cek Railway apakah sedang sleep/down."
+          : err?.message || "Gagal menghubungi WA Engine",
+      },
+      { status: 500 }
+    );
+  }
 }
