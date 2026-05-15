@@ -957,7 +957,7 @@ export default function Home() {
 
         <div style={{ display: "grid", gap: 14 }}>
           {flowTriggers.map((trigger) => (
-            <TriggerCard key={trigger.id} item={trigger} />
+            <div key={trigger.id}>{TriggerCard({ item: trigger })}</div>
           ))}
 
           {flowTriggers.length === 0 && (
@@ -1302,7 +1302,7 @@ export default function Home() {
     const answers = getResponseParts(item.response);
 
     if (editingTriggerId === item.id) {
-      return <EditTriggerCard item={item} />;
+      return {EditTriggerCard({ item })};
     }
 
     return (
