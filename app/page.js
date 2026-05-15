@@ -104,7 +104,7 @@ export default function Home() {
     return "Tanpa media";
   }
 
-  async function safeJson(res) {
+  async function readJsonSafe(res) {
     const text = await res.text();
 
     try {
@@ -118,12 +118,18 @@ export default function Home() {
   }
 
   async function callWaApi(action) {
-    const res = await fetch(`${WA_API_URL}/${action}?t=${Date.now()}`, {
-      method: "GET",
-      cache: "no-store",
-    });
+    let res;
 
-    const data = await safeJson(res);
+    try {
+      res = await fetch(`${WA_API_URL}/${action}?t=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+    } catch {
+      throw new Error("Gagal fetch API Vercel. Pastikan file app/api/wa/[action]/route.js sudah dibuat dan sudah deploy ulang.");
+    }
+
+    const data = await readJsonSafe(res);
 
     if (!res.ok || data.success === false) {
       throw new Error(data.message || `WA API error: ${res.status}`);
@@ -173,7 +179,9 @@ export default function Home() {
   async function addFlow() {
     if (!newFlowName.trim()) return alert("Isi nama alur");
 
-    const { error } = await supabase.from("flows").insert([{ name: newFlowName.trim() }]);
+    const { error } = await supabase
+      .from("flows")
+      .insert([{ name: newFlowName.trim() }]);
 
     if (error) {
       alert(error.message);
@@ -189,7 +197,10 @@ export default function Home() {
 
     const cleanName = editingFlowName.trim();
 
-    const { error } = await supabase.from("flows").update({ name: cleanName }).eq("id", id);
+    const { error } = await supabase
+      .from("flows")
+      .update({ name: cleanName })
+      .eq("id", id);
 
     if (error) {
       alert(error.message);
@@ -350,20 +361,17 @@ export default function Home() {
         body: formData,
       });
 
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(text || "Server tidak mengembalikan JSON");
-      }
+      const data = await readJsonSafe(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Upload gagal");
       }
 
       const url = data.url || data.image;
+
+      if (!url) {
+        throw new Error("URL media kosong dari server");
+      }
 
       setMedia((prev) => [
         ...prev,
@@ -395,20 +403,17 @@ export default function Home() {
         body: formData,
       });
 
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(text || "Server tidak mengembalikan JSON");
-      }
+      const data = await readJsonSafe(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Upload gagal");
       }
 
       const url = data.url || data.image;
+
+      if (!url) {
+        throw new Error("URL media kosong dari server");
+      }
 
       setEditMedia((prev) => [
         ...prev,
@@ -589,7 +594,10 @@ export default function Home() {
   }
 
   async function toggleStatus(id, current) {
-    const { error } = await supabase.from("triggers").update({ active: !current }).eq("id", id);
+    const { error } = await supabase
+      .from("triggers")
+      .update({ active: !current })
+      .eq("id", id);
 
     if (error) {
       alert(error.message);
@@ -1372,7 +1380,10 @@ export default function Home() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: itemMedia.length === 1 ? "minmax(0, 220px)" : "repeat(2, minmax(0, 160px))",
+            gridTemplateColumns:
+              itemMedia.length === 1
+                ? "minmax(0, 220px)"
+                : "repeat(2, minmax(0, 160px))",
             gap: 10,
           }}
         >
@@ -2231,77 +2242,117 @@ const ALLOWED_ACTIONS = new Set(["qr-json", "connect", "logout"]);
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const revalidate = 0;
 
-export async function GET(request, { params }) {
+async function readBodySafe(res) {
+  const text = await res.text();
+
   try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      success: res.ok,
+      message: text || "WA Engine tidak mengembalikan JSON",
+    };
+  }
+}
+
+function json(data, status = 200) {
+  return Response.json(data, {
+    status,
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
+}
+
+export async function GET(request, context) {
+  let timeout;
+
+  try {
+    const rawParams = context?.params;
+    const params =
+      rawParams && typeof rawParams.then === "function" ? await rawParams : rawParams;
+
     const action = params?.action;
 
     if (!ALLOWED_ACTIONS.has(action)) {
-      return Response.json(
+      return json(
         {
           success: false,
           message: "Action WA tidak valid",
         },
-        { status: 400 }
+        400
       );
     }
 
     const targetUrl = `${WA_ENGINE_URL}/${action}?t=${Date.now()}`;
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
 
-    const res = await fetch(targetUrl, {
-      method: "GET",
-      cache: "no-store",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json,text/plain,*/*",
-      },
-    });
+    timeout = setTimeout(() => controller.abort(), 25000);
 
-    clearTimeout(timeout);
-
-    const text = await res.text();
-
-    let data;
+    let res;
     try {
-      data = JSON.parse(text);
-    } catch {
-      data = {
-        success: res.ok,
-        message: text || "WA Engine tidak mengembalikan JSON",
-      };
+      res = await fetch(targetUrl, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json,text/plain,*/*",
+          "User-Agent": "Nexis-Vercel-Proxy/1.0",
+        },
+      });
+    } catch (err) {
+      const isAbort = err?.name === "AbortError";
+
+      return json(
+        {
+          success: false,
+          message: isAbort
+            ? "WA Engine timeout. Cek Railway apakah sedang sleep/down."
+            : "Gagal menghubungi WA Engine. Cek URL Railway / WA_ENGINE_URL.",
+          detail: err?.message || String(err),
+        },
+        502
+      );
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
 
+    const data = await readBodySafe(res);
+
     if (!res.ok) {
-      return Response.json(
+      return json(
         {
           success: false,
           message: data?.message || `WA Engine error ${res.status}`,
           detail: data,
         },
-        { status: res.status }
+        res.status
       );
     }
 
-    return Response.json(data, {
-      status: 200,
-      headers: {
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (err) {
-    const isAbort = err?.name === "AbortError";
+    if (data?.success === false) {
+      return json(
+        {
+          success: false,
+          message: data?.message || "WA Engine mengembalikan status gagal",
+          detail: data,
+        },
+        502
+      );
+    }
 
-    return Response.json(
+    return json(data, 200);
+  } catch (err) {
+    if (timeout) clearTimeout(timeout);
+
+    return json(
       {
         success: false,
-        message: isAbort
-          ? "WA Engine timeout. Cek Railway apakah sedang sleep/down."
-          : err?.message || "Gagal menghubungi WA Engine",
+        message: err?.message || "Gagal menghubungi WA Engine",
       },
-      { status: 500 }
+      500
     );
   }
 }
