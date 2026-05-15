@@ -44,6 +44,7 @@ export default function Home() {
   const [waStatus, setWaStatus] = useState(null);
   const [qrData, setQrData] = useState(null);
   const [showQr, setShowQr] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
 
   const uploading = uploadingCount > 0;
   const editUploading = editUploadingCount > 0;
@@ -221,19 +222,40 @@ export default function Home() {
 
       if (data.connected) {
         setQrData(null);
+        setQrLoading(false);
       } else {
-        setQrData(data.qr);
+        setQrData(data.qr || null);
+        if (data.qr) {
+          setQrLoading(false);
+        }
       }
     } catch {
       setWaStatus(false);
       setQrData(null);
+      setQrLoading(false);
     }
   }
 
   async function connectWa() {
-    await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`);
-    setShowQr(true);
-    setTimeout(getWaStatus, 2000);
+    try {
+      setShowQr(true);
+      setQrLoading(true);
+      setQrData(null);
+      setWaStatus(false);
+
+      await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`);
+
+      setTimeout(getWaStatus, 1500);
+      setTimeout(getWaStatus, 3000);
+      setTimeout(getWaStatus, 5000);
+      setTimeout(() => {
+        getWaStatus();
+        setQrLoading(false);
+      }, 7000);
+    } catch (err) {
+      setQrLoading(false);
+      alert("Gagal membuat QR: " + err.message);
+    }
   }
 
   async function logoutWa() {
@@ -242,6 +264,8 @@ export default function Home() {
 
     await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`);
     setShowQr(false);
+    setQrLoading(false);
+    setQrData(null);
     setTimeout(getWaStatus, 2000);
   }
 
@@ -790,8 +814,13 @@ export default function Home() {
 
                 <button
                   onClick={() => {
-                    setShowQr(!showQr);
-                    getWaStatus();
+                    if (showQr) {
+                      setShowQr(false);
+                      setQrLoading(false);
+                      return;
+                    }
+
+                    connectWa();
                   }}
                   style={{ ...styles.button, ...styles.ghostButton }}
                 >
@@ -819,6 +848,17 @@ export default function Home() {
                   alt="QR"
                   style={{ width: "100%", borderRadius: 18, display: "block" }}
                 />
+                <p
+                  style={{
+                    ...styles.muted,
+                    marginTop: 12,
+                    textAlign: "center",
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Scan QR ini dari WhatsApp untuk menghubungkan perangkat.
+                </p>
               </div>
             ) : (
               <div
@@ -835,10 +875,30 @@ export default function Home() {
                 }}
               >
                 <div>
-                  <p style={{ fontSize: 34, marginBottom: 12 }}>▦</p>
-                  <p style={styles.muted}>
-                    QR akan muncul setelah tombol Scan QR ditekan dan WhatsApp belum terhubung.
+                  <p style={{ fontSize: 34, marginBottom: 12 }}>
+                    {qrLoading ? "⏳" : "▦"}
                   </p>
+                  <p style={styles.muted}>
+                    {qrLoading
+                      ? "Sedang membuat QR. Tunggu beberapa detik..."
+                      : waStatus
+                      ? "WhatsApp sudah terhubung."
+                      : "Klik Scan QR untuk membuat barcode perangkat."}
+                  </p>
+
+                  {showQr && !qrLoading && !qrData && !waStatus && (
+                    <button
+                      onClick={connectWa}
+                      className="green-btn"
+                      style={{
+                        ...styles.button,
+                        marginTop: 14,
+                        padding: "9px 13px",
+                      }}
+                    >
+                      Coba Buat QR Lagi
+                    </button>
+                  )}
                 </div>
               </div>
             )}
