@@ -1482,11 +1482,124 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
+        <div
+          style={{
+            marginTop: 18,
+            padding: 16,
+            borderRadius: 20,
+            background: "rgba(255,255,255,0.035)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: 18 }}>Follow Up</h3>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                Follow up berhenti otomatis kalau customer membalas.
+              </p>
+            </div>
+
+            <button
+              onClick={() => addFollowup("create")}
+              style={{ ...styles.button, ...styles.ghostButton, padding: "8px 11px" }}
+            >
+              + Follow Up
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {followups.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "120px 1fr auto",
+                  gap: 10,
+                  alignItems: "start",
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "rgba(0,0,0,0.16)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <div>
+                  <label style={styles.label}>Menit</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.delayMinutes}
+                    onChange={(e) =>
+                      updateFollowupValue(
+                        index,
+                        "delayMinutes",
+                        e.target.value,
+                        "create"
+                      )
+                    }
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>Follow Up {index + 1}</label>
+                  <textarea
+                    value={item.message}
+                    onChange={(e) =>
+                      updateFollowupValue(index, "message", e.target.value, "create")
+                    }
+                    placeholder="Contoh: mau pesan yang mana kak?"
+                    style={{ ...styles.textarea, minHeight: 74 }}
+                  />
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginTop: 8,
+                      color: "#d1d5db",
+                      fontSize: 13,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.active !== false}
+                      onChange={(e) =>
+                        updateFollowupValue(index, "active", e.target.checked, "create")
+                      }
+                    />
+                    Aktif
+                  </label>
+                </div>
+
+                <button
+                  onClick={() => removeFollowup(index, "create")}
+                  style={{ ...styles.button, ...styles.dangerButton, padding: "8px 11px" }}
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <button
             onClick={addTrigger}
-            className="green-btn"
-            style={styles.button}
+            disabled={uploading}
+            className={!uploading ? "green-btn" : ""}
+            style={{
+              ...styles.button,
+              opacity: uploading ? 0.5 : 1,
+              cursor: uploading ? "not-allowed" : "pointer",
+            }}
           >
             Simpan Trigger
           </button>
@@ -1495,13 +1608,1046 @@ export default function Home() {
             onClick={() => setShowCreateForm(false)}
             style={{ ...styles.button, ...styles.ghostButton }}
           >
-            Tutup
+            Batal
           </button>
         </div>
       </div>
+    );
+  }
 
-      <div style={{ marginTop: 18 }}>
+  function MediaGrid({ items, onRemove }) {
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 10,
+        }}
+      >
+        {items.map((item, index) => (
+          <div
+            key={index}
+            style={{
+              padding: 8,
+              borderRadius: 16,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <p
+              style={{
+                color: "#00ff9d",
+                fontSize: 12,
+                fontWeight: 850,
+                marginBottom: 7,
+              }}
+            >
+              {getMediaLabel(item)}
+            </p>
 
+            {item.type === "video" ? (
+              <video
+                src={item.url}
+                controls
+                style={{
+                  width: "100%",
+                  borderRadius: 12,
+                  display: "block",
+                  marginBottom: 7,
+                }}
+              />
+            ) : (
+              <img
+                src={item.url}
+                alt="Preview"
+                style={{
+                  width: "100%",
+                  borderRadius: 12,
+                  display: "block",
+                  marginBottom: 7,
+                }}
+              />
+            )}
+
+            {onRemove && (
+              <button
+                onClick={() => onRemove(index)}
+                style={{
+                  ...styles.button,
+                  ...styles.dangerButton,
+                  width: "100%",
+                  padding: "8px 10px",
+                }}
+              >
+                Hapus
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function MediaPreview({ item }) {
+    const itemMedia = getMediaFromItem(item);
+
+    if (itemMedia.length === 0) {
+      return null;
+    }
+
+    const grouped = itemMedia.reduce((acc, mediaItem) => {
+      const answerIndex = getMediaAnswerIndex(mediaItem);
+      if (!acc[answerIndex]) acc[answerIndex] = [];
+      acc[answerIndex].push(mediaItem);
+      return acc;
+    }, {});
+
+    return (
+      <div style={{ marginTop: 14 }}>
+        <p style={{ ...styles.muted, fontSize: 13, marginBottom: 8 }}>
+          Media: {getMediaSummary(item)}
+        </p>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          {Object.keys(grouped)
+            .sort((a, b) => Number(a) - Number(b))
+            .map((answerIndex) => {
+              const mediaItems = grouped[answerIndex];
+
+              return (
+                <div key={answerIndex}>
+                  <p
+                    style={{
+                      color: "#00ff9d",
+                      fontSize: 12,
+                      fontWeight: 850,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Media Jawaban {Number(answerIndex) + 1}
+                  </p>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        mediaItems.length === 1
+                          ? "minmax(0, 220px)"
+                          : "repeat(2, minmax(0, 160px))",
+                      gap: 10,
+                    }}
+                  >
+                    {mediaItems.slice(0, 4).map((mediaItem, mediaIndex) => (
+                      <div
+                        key={mediaIndex}
+                        style={{
+                          position: "relative",
+                          height: mediaItems.length === 1 ? 145 : 105,
+                          borderRadius: 18,
+                          overflow: "hidden",
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        {mediaItem.type === "video" ? (
+                          <>
+                            <video
+                              src={mediaItem.url}
+                              muted
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                display: "block",
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: "absolute",
+                                left: 8,
+                                bottom: 8,
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                fontSize: 11,
+                                fontWeight: 850,
+                                background: "rgba(0,0,0,0.62)",
+                              }}
+                            >
+                              VIDEO
+                            </span>
+                          </>
+                        ) : (
+                          <img
+                            src={mediaItem.url}
+                            alt="Media Preview"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block",
+                            }}
+                          />
+                        )}
+
+                        {mediaIndex === 3 && mediaItems.length > 4 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "grid",
+                              placeItems: "center",
+                              background: "rgba(0,0,0,0.58)",
+                              fontWeight: 950,
+                            }}
+                          >
+                            +{mediaItems.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    );
+  }
+
+  function TriggerCard({ item }) {
+    const answers = getResponseParts(item.response);
+    const itemFollowups = getFollowupsFromItem(item).filter(
+      (followup) => followup?.active !== false && String(followup?.message || "").trim()
+    );
+
+    if (editingTriggerId === item.id) {
+      return EditTriggerCard({ item });
+    }
+
+    return (
+      <div
+        style={{
+          padding: 18,
+          borderRadius: 24,
+          background: "rgba(255,255,255,0.045)",
+          border: "1px solid rgba(255,255,255,0.075)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 14,
+            alignItems: "flex-start",
+            marginBottom: 14,
+          }}
+        >
+          <div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 9 }}>
+              <span
+                style={{
+                  ...styles.pill,
+                  background: item.active
+                    ? "rgba(0,255,157,0.12)"
+                    : "rgba(255,77,103,0.12)",
+                  color: item.active ? "#00ff9d" : "#ff7b90",
+                }}
+              >
+                ● {item.active ? "Aktif" : "Nonaktif"}
+              </span>
+
+              <span
+                style={{
+                  ...styles.pill,
+                  background: "rgba(255,255,255,0.06)",
+                  color: "#d1d5db",
+                }}
+              >
+                {item.is_flow_entry ? "Masuk/Pindah Alur" : item.type}
+              </span>
+
+              <span
+                style={{
+                  ...styles.pill,
+                  background: "rgba(255,255,255,0.06)",
+                  color: "#d1d5db",
+                }}
+              >
+                {answers.length} Jawaban
+              </span>
+
+              <span
+                style={{
+                  ...styles.pill,
+                  background: itemFollowups.length > 0
+                    ? "rgba(0,255,157,0.10)"
+                    : "rgba(255,255,255,0.06)",
+                  color: itemFollowups.length > 0 ? "#00ff9d" : "#d1d5db",
+                }}
+              >
+                {itemFollowups.length} Follow Up
+              </span>
+            </div>
+
+            <h3 style={{ fontSize: 22, letterSpacing: -0.5 }}>{item.keyword}</h3>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {answers.length > 0 ? (
+            answers.map((answer, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  background: "rgba(0,0,0,0.20)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <p
+                  style={{
+                    color: "#00ff9d",
+                    fontSize: 12,
+                    fontWeight: 850,
+                    marginBottom: 6,
+                  }}
+                >
+                  Jawaban {index + 1}:
+                </p>
+                <p style={{ color: "#e5e7eb", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                  {answer}
+                </p>
+              </div>
+            ))
+          ) : (
+            <p style={styles.muted}>Tidak ada teks jawaban.</p>
+          )}
+        </div>
+
+        {MediaPreview({ item })}
+
+        {itemFollowups.length > 0 && (
+          <div
+            style={{
+              marginTop: 14,
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            {itemFollowups.map((followup, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "rgba(0,255,157,0.055)",
+                  border: "1px solid rgba(0,255,157,0.12)",
+                }}
+              >
+                <p
+                  style={{
+                    color: "#00ff9d",
+                    fontSize: 12,
+                    fontWeight: 850,
+                    marginBottom: 5,
+                  }}
+                >
+                  Follow Up {index + 1} · {followup.delayMinutes} menit
+                </p>
+                <p style={{ color: "#e5e7eb", lineHeight: 1.55 }}>
+                  {followup.message}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 16 }}>
+          <button
+            onClick={() => startEditTrigger(item)}
+            style={{ ...styles.button, ...styles.ghostButton, padding: "9px 12px" }}
+          >
+            Edit
+          </button>
+
+          <button
+            onClick={() => duplicateTrigger(item)}
+            style={{
+              ...styles.button,
+              background: "rgba(0,255,157,0.12)",
+              color: "#00ff9d",
+              border: "1px solid rgba(0,255,157,0.18)",
+              padding: "9px 12px",
+            }}
+          >
+            Salin
+          </button>
+
+          <button
+            onClick={() =>
+              setCopyingTriggerId(copyingTriggerId === item.id ? null : item.id)
+            }
+            style={{ ...styles.button, ...styles.ghostButton, padding: "9px 12px" }}
+          >
+            Salin ke Alur
+          </button>
+
+          <button
+            onClick={() => toggleStatus(item.id, item.active)}
+            style={{ ...styles.button, ...styles.ghostButton, padding: "9px 12px" }}
+          >
+            {item.active ? "Nonaktifkan" : "Aktifkan"}
+          </button>
+
+          <button
+            onClick={() => deleteTrigger(item.id)}
+            style={{ ...styles.button, ...styles.dangerButton, padding: "9px 12px" }}
+          >
+            Hapus
+          </button>
+
+          {copyingTriggerId === item.id && (
+            <div
+              style={{
+                width: "100%",
+                marginTop: 8,
+                padding: 13,
+                borderRadius: 18,
+                background: "rgba(255,255,255,0.055)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <label style={styles.label}>Salin ke alur</label>
+              <select
+                value={copyTargetFlow[item.id] || ""}
+                onChange={(e) =>
+                  setCopyTargetFlow({
+                    ...copyTargetFlow,
+                    [item.id]: e.target.value,
+                  })
+                }
+                style={{ ...styles.input, marginBottom: 10 }}
+              >
+                <option value="">Pilih alur tujuan</option>
+                {flows.map((flow) => (
+                  <option key={flow.id} value={flow.id}>
+                    {flow.name}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => {
+                  const target = copyTargetFlow[item.id];
+                  if (!target) return alert("Pilih alur tujuan dulu");
+                  duplicateTrigger(item, Number(target));
+                }}
+                className="green-btn"
+                style={{ ...styles.button, width: "100%" }}
+              >
+                Salin Trigger
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function EditTriggerCard({ item }) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          borderRadius: 24,
+          background: "rgba(0,255,157,0.06)",
+          border: "1px solid rgba(0,255,157,0.16)",
+        }}
+      >
+        <h3 style={{ marginBottom: 14 }}>Edit Trigger</h3>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 16 }}>
+          <div>
+            <label style={styles.label}>Keyword</label>
+            <input
+              value={editKeyword}
+              onChange={(e) => setEditKeyword(e.target.value)}
+              style={{ ...styles.input, marginBottom: 14 }}
+            />
+
+            <label style={styles.label}>Jawaban</label>
+            {editResponseList.map((answer, index) => (
+              <div key={index} style={{ marginBottom: 10 }}>
+                <textarea
+                  value={answer}
+                  onChange={(e) => {
+                    const updated = [...editResponseList];
+                    updated[index] = e.target.value;
+                    setEditResponseList(updated);
+                    setEditResponse(joinResponses(updated));
+                  }}
+                  placeholder={`Jawaban ${index + 1}`}
+                  style={styles.textarea}
+                />
+
+                {editResponseList.length > 1 && (
+                  <button
+                    onClick={() => {
+                      const updated = editResponseList.filter((_, i) => i !== index);
+                      setEditResponseList(updated);
+                      setEditResponse(joinResponses(updated));
+                    }}
+                    style={{
+                      ...styles.button,
+                      ...styles.dangerButton,
+                      marginTop: 7,
+                      padding: "8px 11px",
+                    }}
+                  >
+                    Hapus Jawaban
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={() => setEditResponseList([...editResponseList, ""])}
+              style={{ ...styles.button, ...styles.ghostButton }}
+            >
+              + Tambah Jawaban
+            </button>
+          </div>
+
+          <div>
+            <label style={styles.label}>Jenis Trigger</label>
+            <select
+              value={editType}
+              onChange={(e) => setEditType(e.target.value)}
+              style={{ ...styles.input, marginBottom: 14 }}
+            >
+              <option>Mengandung</option>
+              <option>Sama Persis</option>
+            </select>
+
+            <label
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                padding: 14,
+                borderRadius: 16,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                marginBottom: 14,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={editIsFlowEntry}
+                onChange={(e) => setEditIsFlowEntry(e.target.checked)}
+              />
+              <span>Masuk / pindah alur</span>
+            </label>
+
+            <label style={styles.label}>Foto / Video untuk Jawaban</label>
+
+            <select
+              value={editMediaAnswerIndex}
+              onChange={(e) => setEditMediaAnswerIndex(Number(e.target.value))}
+              style={{ ...styles.input, marginBottom: 12 }}
+            >
+              {editResponseList.map((_, index) => (
+                <option key={index} value={index}>
+                  Media untuk Jawaban {index + 1}
+                </option>
+              ))}
+            </select>
+
+            <label
+              style={{
+                display: "block",
+                padding: 16,
+                borderRadius: 18,
+                border: "1px dashed rgba(0,255,157,0.32)",
+                background: "rgba(0,255,157,0.055)",
+                textAlign: "center",
+                cursor: "pointer",
+                marginBottom: 12,
+              }}
+            >
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  files.forEach((file) => uploadEditMedia(file, editMediaAnswerIndex));
+                  e.target.value = "";
+                }}
+              />
+              <b>Upload Media</b>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                Media akan masuk ke Jawaban {editMediaAnswerIndex + 1}
+              </p>
+            </label>
+
+            {editUploading && (
+              <p style={{ color: "#00ff9d", marginBottom: 10 }}>
+                Upload... {editUploadingCount} file
+              </p>
+            )}
+
+            {editMedia.length > 0 && MediaGrid({ items: editMedia, onRemove: removeEditMedia })}
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 18,
+            padding: 16,
+            borderRadius: 20,
+            background: "rgba(255,255,255,0.035)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: 18 }}>Follow Up</h3>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                Jika customer membalas, follow up berikutnya berhenti otomatis.
+              </p>
+            </div>
+
+            <button
+              onClick={() => addFollowup("edit")}
+              style={{ ...styles.button, ...styles.ghostButton, padding: "8px 11px" }}
+            >
+              + Follow Up
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {editFollowups.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "120px 1fr auto",
+                  gap: 10,
+                  alignItems: "start",
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "rgba(0,0,0,0.16)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <div>
+                  <label style={styles.label}>Menit</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.delayMinutes}
+                    onChange={(e) =>
+                      updateFollowupValue(index, "delayMinutes", e.target.value, "edit")
+                    }
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>Follow Up {index + 1}</label>
+                  <textarea
+                    value={item.message}
+                    onChange={(e) =>
+                      updateFollowupValue(index, "message", e.target.value, "edit")
+                    }
+                    placeholder="Contoh: mau pesan yang mana kak?"
+                    style={{ ...styles.textarea, minHeight: 74 }}
+                  />
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginTop: 8,
+                      color: "#d1d5db",
+                      fontSize: 13,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.active !== false}
+                      onChange={(e) =>
+                        updateFollowupValue(index, "active", e.target.checked, "edit")
+                      }
+                    />
+                    Aktif
+                  </label>
+                </div>
+
+                <button
+                  onClick={() => removeFollowup(index, "edit")}
+                  style={{ ...styles.button, ...styles.dangerButton, padding: "8px 11px" }}
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button
+            onClick={() => saveEditTrigger(item.id)}
+            disabled={editUploading}
+            className={!editUploading ? "green-btn" : ""}
+            style={{
+              ...styles.button,
+              opacity: editUploading ? 0.5 : 1,
+              cursor: editUploading ? "not-allowed" : "pointer",
+            }}
+          >
+            Simpan
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingTriggerId(null);
+              setEditMedia([]);
+              setEditImage("");
+              setEditMediaAnswerIndex(0);
+              setEditFollowups([
+                {
+                  delayMinutes: 5,
+                  message: "",
+                  active: true,
+                },
+              ]);
+              setEditUploadingCount(0);
+            }}
+            style={{ ...styles.button, ...styles.ghostButton }}
+          >
+            Batal
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+
+  function TemplatePage() {
+    if (templateSelectedFlow) {
+      const flowTriggers = allTriggers.filter(
+        (item) => item.flow_id === templateSelectedFlow.id
+      );
+
+      return (
+        <>
+          {Header({
+            title: templateSelectedFlow.name,
+            description: "Detail alur yang berisi semua trigger, jawaban, dan media yang sudah dibuat.",
+          })}
+
+          <div className="glass-card" style={styles.section}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 14,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <button
+                  onClick={() => {
+                    setTemplateSelectedFlow(null);
+                    setShowCreateForm(false);
+                    setEditingTriggerId(null);
+                  }}
+                  style={{
+                    ...styles.button,
+                    ...styles.ghostButton,
+                    marginBottom: 14,
+                    padding: "9px 13px",
+                  }}
+                >
+                  ← Kembali ke Daftar Alur
+                </button>
+
+                <p style={styles.muted}>Detail Alur</p>
+                <h2 style={{ marginTop: 7, fontSize: 30, letterSpacing: -0.8 }}>
+                  {templateSelectedFlow.name}
+                </h2>
+                <p style={{ ...styles.muted, marginTop: 8 }}>
+                  {flowTriggers.length} trigger tersimpan di alur ini.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    setSelectedFlow(templateSelectedFlow);
+                    setShowCreateForm(!showCreateForm);
+                  }}
+                  className="green-btn"
+                  style={styles.button}
+                >
+                  + Tambah Trigger
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingFlowId(templateSelectedFlow.id);
+                    setEditingFlowName(templateSelectedFlow.name);
+                  }}
+                  style={{ ...styles.button, ...styles.ghostButton }}
+                >
+                  Edit Alur
+                </button>
+
+                <button
+                  onClick={() => startEditCheckout(templateSelectedFlow)}
+                  style={{ ...styles.button, ...styles.ghostButton }}
+                >
+                  Setting Checkout
+                </button>
+
+                <button
+                  onClick={() => deleteFlow(templateSelectedFlow.id)}
+                  style={{ ...styles.button, ...styles.dangerButton }}
+                >
+                  Hapus Alur
+                </button>
+              </div>
+            </div>
+
+            {editingFlowId === templateSelectedFlow.id && (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 16,
+                  borderRadius: 22,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <label style={styles.label}>Nama Alur</label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <input
+                    value={editingFlowName}
+                    onChange={(e) => setEditingFlowName(e.target.value)}
+                    style={{ ...styles.input, flex: 1, minWidth: 240 }}
+                  />
+                  <button
+                    onClick={() => updateFlowName(templateSelectedFlow.id)}
+                    className="green-btn"
+                    style={styles.button}
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingFlowId(null);
+                      setEditingFlowName("");
+                    }}
+                    style={{ ...styles.button, ...styles.ghostButton }}
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {checkoutEditingFlowId === templateSelectedFlow.id && (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 18,
+                  borderRadius: 22,
+                  background: "rgba(0,255,157,0.055)",
+                  border: "1px solid rgba(0,255,157,0.14)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    marginBottom: 14,
+                  }}
+                >
+                  <div>
+                    <h3>Setting Checkout</h3>
+                    <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga].
+                    </p>
+                  </div>
+
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      color: "#d1d5db",
+                      fontWeight: 800,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checkoutForm.enabled}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          enabled: e.target.checked,
+                        })
+                      }
+                    />
+                    Aktifkan Checkout
+                  </label>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <label style={styles.label}>Nama Produk</label>
+                    <input
+                      value={checkoutForm.productName}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          productName: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: Lampu"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Ongkir Default</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.defaultShipping}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          defaultShipping: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 20000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Harga 1 pcs</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.price1}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          price1: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 10000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Harga 2 pcs</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.price2}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          price2: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 18000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Harga Tambahan pcs ke-3 dst</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.priceExtra}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          priceExtra: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 9000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Ongkir per Area</label>
+                    <textarea
+                      value={checkoutForm.shippingByAreaText}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          shippingByAreaText: e.target.value,
+                        })
+                      }
+                      placeholder={"bandung=15000\njakarta=20000"}
+                      style={{ ...styles.textarea, minHeight: 110 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                  <button
+                    onClick={() => saveCheckout(templateSelectedFlow.id)}
+                    className="green-btn"
+                    style={styles.button}
+                  >
+                    Simpan Checkout
+                  </button>
+
+                  <button
+                    onClick={() => setCheckoutEditingFlowId(null)}
+                    style={{ ...styles.button, ...styles.ghostButton }}
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {showCreateForm && selectedFlow?.id === templateSelectedFlow.id && (
+            <div className="glass-card" style={styles.section}>
+              {CreateTriggerBox()}
+            </div>
+          )}
+
+          <div style={{ display: "grid", gap: 14 }}>
             {flowTriggers.map((trigger) => (
               <div key={trigger.id}>{TriggerCard({ item: trigger })}</div>
             ))}
