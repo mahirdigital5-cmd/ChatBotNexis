@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 
 const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
+const ANSWER_SEPARATOR = "\n---JAWABAN_BARU---\n";
 
 export default function Home() {
   const [flows, setFlows] = useState([]);
@@ -85,11 +86,29 @@ export default function Home() {
   );
 
   function joinResponses(list) {
-    return list.map((item) => item.trim()).filter(Boolean).join("\n");
+    return list
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .join(ANSWER_SEPARATOR);
   }
 
   function splitResponses(value) {
-    const result = String(value || "")
+    const raw = String(value || "");
+
+    // Format baru: jawaban dipisah pakai separator khusus.
+    // Enter biasa di dalam textarea tetap dianggap bagian dari 1 jawaban.
+    if (raw.includes(ANSWER_SEPARATOR.trim())) {
+      const result = raw
+        .split(ANSWER_SEPARATOR.trim())
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      return result.length > 0 ? result : [""];
+    }
+
+    // Legacy: data lama masih pakai newline sebagai pemisah.
+    // Ini hanya untuk trigger lama yang belum disimpan ulang.
+    const result = raw
       .split(/\n+/)
       .map((item) => item.trim())
       .filter(Boolean);
@@ -2492,7 +2511,7 @@ export default function Home() {
                   <div>
                     <h3>Setting Checkout</h3>
                     <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
-                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga].
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa.
                     </p>
                   </div>
 
