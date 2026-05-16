@@ -24,12 +24,6 @@ export default function Home() {
     priceExtra: "",
     defaultShipping: "",
     shippingByAreaText: "",
-    templateTotal: "",
-    templateAskQty: "",
-    templateAskName: "",
-    templateFinalOrder: "",
-    templateDone: "",
-    templateCancel: "",
   });
 
   const [copyTargetFlow, setCopyTargetFlow] = useState({});
@@ -257,12 +251,6 @@ export default function Home() {
       priceExtra: checkout.priceExtra || "",
       defaultShipping: checkout.defaultShipping || "",
       shippingByAreaText: shippingByAreaToText(checkout.shippingByArea),
-      templateTotal: checkout.templates?.total || "",
-      templateAskQty: checkout.templates?.askQty || "",
-      templateAskName: checkout.templates?.askName || "",
-      templateFinalOrder: checkout.templates?.finalOrder || "",
-      templateDone: checkout.templates?.done || "",
-      templateCancel: checkout.templates?.cancel || "",
     });
   }
 
@@ -275,14 +263,6 @@ export default function Home() {
       priceExtra: Number(checkoutForm.priceExtra) || 0,
       defaultShipping: Number(checkoutForm.defaultShipping) || 0,
       shippingByArea: textToShippingByArea(checkoutForm.shippingByAreaText),
-      templates: {
-        total: String(checkoutForm.templateTotal || "").trim(),
-        askQty: String(checkoutForm.templateAskQty || "").trim(),
-        askName: String(checkoutForm.templateAskName || "").trim(),
-        finalOrder: String(checkoutForm.templateFinalOrder || "").trim(),
-        done: String(checkoutForm.templateDone || "").trim(),
-        cancel: String(checkoutForm.templateCancel || "").trim(),
-      },
     };
 
     const { error } = await supabase
@@ -2511,8 +2491,9 @@ export default function Home() {
                 >
                   <div>
                     <h3>Setting Checkout</h3>
-                    <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
-                      Harga dan ongkir ini khusus untuk alur ini saja.
+                    <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa.
+                      Placeholder yang bisa dipakai di jawaban trigger: [area], [qty], [produk], [subtotal], [ongkir], [total], [nama], [alamat], [pesanan].
                     </p>
                   </div>
 
