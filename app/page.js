@@ -15,6 +15,17 @@ export default function Home() {
   const [editingFlowId, setEditingFlowId] = useState(null);
   const [editingFlowName, setEditingFlowName] = useState("");
 
+  const [checkoutEditingFlowId, setCheckoutEditingFlowId] = useState(null);
+  const [checkoutForm, setCheckoutForm] = useState({
+    enabled: false,
+    productName: "",
+    price1: "",
+    price2: "",
+    priceExtra: "",
+    defaultShipping: "",
+    shippingByAreaText: "",
+  });
+
   const [copyTargetFlow, setCopyTargetFlow] = useState({});
   const [copyingTriggerId, setCopyingTriggerId] = useState(null);
 
@@ -188,6 +199,85 @@ export default function Home() {
         active: true,
       },
     ]);
+  }
+
+  function getCheckoutFromFlow(flow) {
+    if (!flow?.checkout) return {};
+
+    if (typeof flow.checkout === "string") {
+      try {
+        return JSON.parse(flow.checkout) || {};
+      } catch {
+        return {};
+      }
+    }
+
+    return flow.checkout || {};
+  }
+
+  function shippingByAreaToText(value) {
+    return Object.entries(value || {})
+      .map(([area, price]) => `${area}=${price}`)
+      .join("\n");
+  }
+
+  function textToShippingByArea(value) {
+    const result = {};
+
+    String(value || "")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const [areaRaw, priceRaw] = line.split("=");
+        const area = String(areaRaw || "").trim().toLowerCase();
+        const price = Number(String(priceRaw || "").replace(/[^0-9]/g, ""));
+
+        if (area && price > 0) result[area] = price;
+      });
+
+    return result;
+  }
+
+  function startEditCheckout(flow) {
+    const checkout = getCheckoutFromFlow(flow);
+
+    setCheckoutEditingFlowId(flow.id);
+    setCheckoutForm({
+      enabled: checkout.enabled === true,
+      productName: checkout.productName || flow.name || "",
+      price1: checkout.price1 || "",
+      price2: checkout.price2 || "",
+      priceExtra: checkout.priceExtra || "",
+      defaultShipping: checkout.defaultShipping || "",
+      shippingByAreaText: shippingByAreaToText(checkout.shippingByArea),
+    });
+  }
+
+  async function saveCheckout(flowId) {
+    const checkout = {
+      enabled: checkoutForm.enabled === true,
+      productName: String(checkoutForm.productName || "").trim(),
+      price1: Number(checkoutForm.price1) || 0,
+      price2: Number(checkoutForm.price2) || 0,
+      priceExtra: Number(checkoutForm.priceExtra) || 0,
+      defaultShipping: Number(checkoutForm.defaultShipping) || 0,
+      shippingByArea: textToShippingByArea(checkoutForm.shippingByAreaText),
+    };
+
+    const { error } = await supabase
+      .from("flows")
+      .update({ checkout })
+      .eq("id", flowId);
+
+    if (error) {
+      alert(error.message || "Gagal simpan checkout");
+      return;
+    }
+
+    setCheckoutEditingFlowId(null);
+    await refreshAll();
+    alert("Setting checkout berhasil disimpan");
   }
 
   function removeFollowup(index, mode = "create") {
@@ -2328,6 +2418,13 @@ export default function Home() {
                 </button>
 
                 <button
+                  onClick={() => startEditCheckout(templateSelectedFlow)}
+                  style={{ ...styles.button, ...styles.ghostButton }}
+                >
+                  Setting Checkout
+                </button>
+
+                <button
                   onClick={() => deleteFlow(templateSelectedFlow.id)}
                   style={{ ...styles.button, ...styles.dangerButton }}
                 >
@@ -2365,6 +2462,176 @@ export default function Home() {
                       setEditingFlowId(null);
                       setEditingFlowName("");
                     }}
+                    style={{ ...styles.button, ...styles.ghostButton }}
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {checkoutEditingFlowId === templateSelectedFlow.id && (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 18,
+                  borderRadius: 22,
+                  background: "rgba(0,255,157,0.055)",
+                  border: "1px solid rgba(0,255,157,0.14)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    marginBottom: 14,
+                  }}
+                >
+                  <div>
+                    <h3>Setting Checkout</h3>
+                    <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                      Harga dan ongkir ini khusus untuk alur ini saja.
+                    </p>
+                  </div>
+
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      color: "#d1d5db",
+                      fontWeight: 800,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checkoutForm.enabled}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          enabled: e.target.checked,
+                        })
+                      }
+                    />
+                    Aktifkan Checkout
+                  </label>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <label style={styles.label}>Nama Produk</label>
+                    <input
+                      value={checkoutForm.productName}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          productName: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: Lampu"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Ongkir Default</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.defaultShipping}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          defaultShipping: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 20000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Harga 1 pcs</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.price1}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          price1: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 10000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Harga 2 pcs</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.price2}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          price2: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 18000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Harga Tambahan pcs ke-3 dst</label>
+                    <input
+                      type="number"
+                      value={checkoutForm.priceExtra}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          priceExtra: e.target.value,
+                        })
+                      }
+                      placeholder="Contoh: 9000"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Ongkir per Area</label>
+                    <textarea
+                      value={checkoutForm.shippingByAreaText}
+                      onChange={(e) =>
+                        setCheckoutForm({
+                          ...checkoutForm,
+                          shippingByAreaText: e.target.value,
+                        })
+                      }
+                      placeholder={"bandung=15000\njakarta=20000"}
+                      style={{ ...styles.textarea, minHeight: 110 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                  <button
+                    onClick={() => saveCheckout(templateSelectedFlow.id)}
+                    className="green-btn"
+                    style={styles.button}
+                  >
+                    Simpan Checkout
+                  </button>
+
+                  <button
+                    onClick={() => setCheckoutEditingFlowId(null)}
                     style={{ ...styles.button, ...styles.ghostButton }}
                   >
                     Batal
@@ -2491,7 +2758,7 @@ export default function Home() {
                         {flow.name}
                       </h3>
                       <p style={{ ...styles.muted, marginTop: 5, fontSize: 13 }}>
-                        {flowTriggers.length} trigger · {activeCount} aktif · {mediaCount} media
+                        {flowTriggers.length} trigger · {activeCount} aktif · {mediaCount} media · {getCheckoutFromFlow(flow).enabled ? "checkout aktif" : "checkout mati"}
                       </p>
                     </div>
                   </button>
