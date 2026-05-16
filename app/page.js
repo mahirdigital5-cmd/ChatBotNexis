@@ -25,6 +25,13 @@ export default function Home() {
   const [image, setImage] = useState("");
   const [media, setMedia] = useState([]);
   const [mediaAnswerIndex, setMediaAnswerIndex] = useState(0);
+  const [followups, setFollowups] = useState([
+    {
+      delayMinutes: 5,
+      message: "",
+      active: true,
+    },
+  ]);
   const [isFlowEntry, setIsFlowEntry] = useState(false);
 
   const [editingTriggerId, setEditingTriggerId] = useState(null);
@@ -36,6 +43,13 @@ export default function Home() {
   const [editImage, setEditImage] = useState("");
   const [editMedia, setEditMedia] = useState([]);
   const [editMediaAnswerIndex, setEditMediaAnswerIndex] = useState(0);
+  const [editFollowups, setEditFollowups] = useState([
+    {
+      delayMinutes: 5,
+      message: "",
+      active: true,
+    },
+  ]);
 
   const [activeMenu, setActiveMenu] = useState("perangkat");
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -120,6 +134,78 @@ export default function Home() {
 
   function getMediaLabel(item) {
     return `Jawaban ${getMediaAnswerIndex(item) + 1}`;
+  }
+
+  function getFollowupsFromItem(item) {
+    if (Array.isArray(item?.followups)) {
+      return item.followups;
+    }
+
+    if (typeof item?.followups === "string") {
+      try {
+        const parsed = JSON.parse(item.followups);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {}
+    }
+
+    return [];
+  }
+
+  function normalizeFollowups(list) {
+    return list
+      .map((item) => ({
+        delayMinutes: Number(item.delayMinutes) > 0 ? Number(item.delayMinutes) : 1,
+        message: String(item.message || "").trim(),
+        active: item.active !== false,
+      }))
+      .filter((item) => item.message);
+  }
+
+  function updateFollowupValue(index, field, value, mode = "create") {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+    const source = mode === "edit" ? editFollowups : followups;
+
+    const updated = [...source];
+    updated[index] = {
+      ...updated[index],
+      [field]: value,
+    };
+
+    setter(updated);
+  }
+
+  function addFollowup(mode = "create") {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+    const source = mode === "edit" ? editFollowups : followups;
+
+    setter([
+      ...source,
+      {
+        delayMinutes: 5,
+        message: "",
+        active: true,
+      },
+    ]);
+  }
+
+  function removeFollowup(index, mode = "create") {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+    const source = mode === "edit" ? editFollowups : followups;
+    const updated = source.filter((_, i) => i !== index);
+
+    setter(
+      updated.length > 0
+        ? updated
+        : [
+            {
+              delayMinutes: 5,
+              message: "",
+              active: true,
+            },
+          ]
+    );
   }
 
   async function getFlows() {
@@ -447,6 +533,7 @@ export default function Home() {
         type,
         image: firstImage?.url || "",
         media,
+        followups: normalizeFollowups(followups),
         active: true,
         is_flow_entry: isFlowEntry,
       },
@@ -459,6 +546,13 @@ export default function Home() {
     setImage("");
     setMedia([]);
     setMediaAnswerIndex(0);
+    setFollowups([
+      {
+        delayMinutes: 5,
+        message: "",
+        active: true,
+      },
+    ]);
     setIsFlowEntry(false);
     setShowCreateForm(false);
     setUploadingCount(0);
@@ -478,6 +572,17 @@ export default function Home() {
     setEditIsFlowEntry(item.is_flow_entry === true);
     setEditMedia(itemMedia);
     setEditMediaAnswerIndex(0);
+    setEditFollowups(
+      getFollowupsFromItem(item).length > 0
+        ? getFollowupsFromItem(item)
+        : [
+            {
+              delayMinutes: 5,
+              message: "",
+              active: true,
+            },
+          ]
+    );
     setEditImage(firstImage?.url || item.image || "");
   }
 
@@ -502,6 +607,7 @@ export default function Home() {
         type: editType,
         image: firstImage?.url || "",
         media: editMedia,
+        followups: normalizeFollowups(editFollowups),
         is_flow_entry: editIsFlowEntry,
       })
       .eq("id", id);
@@ -515,6 +621,13 @@ export default function Home() {
     setEditImage("");
     setEditMedia([]);
     setEditMediaAnswerIndex(0);
+    setEditFollowups([
+      {
+        delayMinutes: 5,
+        message: "",
+        active: true,
+      },
+    ]);
     setEditUploadingCount(0);
 
     getAllTriggers();
@@ -531,6 +644,7 @@ export default function Home() {
         type: item.type || "Mengandung",
         image: item.image || "",
         media: item.media || [],
+        followups: getFollowupsFromItem(item),
         active: true,
         is_flow_entry: item.is_flow_entry === true,
       };
@@ -1278,6 +1392,114 @@ export default function Home() {
           </div>
         </div>
 
+        <div
+          style={{
+            marginTop: 18,
+            padding: 16,
+            borderRadius: 20,
+            background: "rgba(255,255,255,0.035)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: 18 }}>Follow Up</h3>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                Follow up berhenti otomatis kalau customer membalas.
+              </p>
+            </div>
+
+            <button
+              onClick={() => addFollowup("create")}
+              style={{ ...styles.button, ...styles.ghostButton, padding: "8px 11px" }}
+            >
+              + Follow Up
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {followups.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "120px 1fr auto",
+                  gap: 10,
+                  alignItems: "start",
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "rgba(0,0,0,0.16)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <div>
+                  <label style={styles.label}>Menit</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.delayMinutes}
+                    onChange={(e) =>
+                      updateFollowupValue(
+                        index,
+                        "delayMinutes",
+                        e.target.value,
+                        "create"
+                      )
+                    }
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>Follow Up {index + 1}</label>
+                  <textarea
+                    value={item.message}
+                    onChange={(e) =>
+                      updateFollowupValue(index, "message", e.target.value, "create")
+                    }
+                    placeholder="Contoh: mau pesan yang mana kak?"
+                    style={{ ...styles.textarea, minHeight: 74 }}
+                  />
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginTop: 8,
+                      color: "#d1d5db",
+                      fontSize: 13,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.active !== false}
+                      onChange={(e) =>
+                        updateFollowupValue(index, "active", e.target.checked, "create")
+                      }
+                    />
+                    Aktif
+                  </label>
+                </div>
+
+                <button
+                  onClick={() => removeFollowup(index, "create")}
+                  style={{ ...styles.button, ...styles.dangerButton, padding: "8px 11px" }}
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <button
             onClick={addTrigger}
@@ -1322,17 +1544,6 @@ export default function Home() {
               border: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            <p
-              style={{
-                color: "#00ff9d",
-                fontSize: 12,
-                fontWeight: 850,
-                marginBottom: 7,
-              }}
-            >
-              {getMediaLabel(item)}
-            </p>
-
             <p
               style={{
                 color: "#00ff9d",
@@ -1515,6 +1726,9 @@ export default function Home() {
 
   function TriggerCard({ item }) {
     const answers = getResponseParts(item.response);
+    const itemFollowups = getFollowupsFromItem(item).filter(
+      (followup) => followup?.active !== false && String(followup?.message || "").trim()
+    );
 
     if (editingTriggerId === item.id) {
       return EditTriggerCard({ item });
@@ -1571,6 +1785,18 @@ export default function Home() {
               >
                 {answers.length} Jawaban
               </span>
+
+              <span
+                style={{
+                  ...styles.pill,
+                  background: itemFollowups.length > 0
+                    ? "rgba(0,255,157,0.10)"
+                    : "rgba(255,255,255,0.06)",
+                  color: itemFollowups.length > 0 ? "#00ff9d" : "#d1d5db",
+                }}
+              >
+                {itemFollowups.length} Follow Up
+              </span>
             </div>
 
             <h3 style={{ fontSize: 22, letterSpacing: -0.5 }}>{item.keyword}</h3>
@@ -1610,6 +1836,42 @@ export default function Home() {
         </div>
 
         {MediaPreview({ item })}
+
+        {itemFollowups.length > 0 && (
+          <div
+            style={{
+              marginTop: 14,
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            {itemFollowups.map((followup, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "rgba(0,255,157,0.055)",
+                  border: "1px solid rgba(0,255,157,0.12)",
+                }}
+              >
+                <p
+                  style={{
+                    color: "#00ff9d",
+                    fontSize: 12,
+                    fontWeight: 850,
+                    marginBottom: 5,
+                  }}
+                >
+                  Follow Up {index + 1} · {followup.delayMinutes} menit
+                </p>
+                <p style={{ color: "#e5e7eb", lineHeight: 1.55 }}>
+                  {followup.message}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 16 }}>
           <button
@@ -1852,6 +2114,109 @@ export default function Home() {
           </div>
         </div>
 
+        <div
+          style={{
+            marginTop: 18,
+            padding: 16,
+            borderRadius: 20,
+            background: "rgba(255,255,255,0.035)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: 18 }}>Follow Up</h3>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                Jika customer membalas, follow up berikutnya berhenti otomatis.
+              </p>
+            </div>
+
+            <button
+              onClick={() => addFollowup("edit")}
+              style={{ ...styles.button, ...styles.ghostButton, padding: "8px 11px" }}
+            >
+              + Follow Up
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {editFollowups.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "120px 1fr auto",
+                  gap: 10,
+                  alignItems: "start",
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "rgba(0,0,0,0.16)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <div>
+                  <label style={styles.label}>Menit</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.delayMinutes}
+                    onChange={(e) =>
+                      updateFollowupValue(index, "delayMinutes", e.target.value, "edit")
+                    }
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>Follow Up {index + 1}</label>
+                  <textarea
+                    value={item.message}
+                    onChange={(e) =>
+                      updateFollowupValue(index, "message", e.target.value, "edit")
+                    }
+                    placeholder="Contoh: mau pesan yang mana kak?"
+                    style={{ ...styles.textarea, minHeight: 74 }}
+                  />
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginTop: 8,
+                      color: "#d1d5db",
+                      fontSize: 13,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.active !== false}
+                      onChange={(e) =>
+                        updateFollowupValue(index, "active", e.target.checked, "edit")
+                      }
+                    />
+                    Aktif
+                  </label>
+                </div>
+
+                <button
+                  onClick={() => removeFollowup(index, "edit")}
+                  style={{ ...styles.button, ...styles.dangerButton, padding: "8px 11px" }}
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <button
             onClick={() => saveEditTrigger(item.id)}
@@ -1872,6 +2237,13 @@ export default function Home() {
               setEditMedia([]);
               setEditImage("");
               setEditMediaAnswerIndex(0);
+              setEditFollowups([
+                {
+                  delayMinutes: 5,
+                  message: "",
+                  active: true,
+                },
+              ]);
               setEditUploadingCount(0);
             }}
             style={{ ...styles.button, ...styles.ghostButton }}
