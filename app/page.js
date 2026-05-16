@@ -1481,35 +1481,27 @@ export default function Home() {
             {media.length > 0 && MediaGrid({ items: media, onRemove: removeMedia })}
           </div>
         </div>
-                </div>
 
-                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <button
-                    onClick={() => saveCheckout(templateSelectedFlow.id)}
-                    className="green-btn"
-                    style={styles.button}
-                  >
-                    Simpan Checkout
-                  </button>
+        <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
+          <button
+            onClick={addTrigger}
+            className="green-btn"
+            style={styles.button}
+          >
+            Simpan Trigger
+          </button>
 
-                  <button
-                    onClick={() => setCheckoutEditingFlowId(null)}
-                    style={{ ...styles.button, ...styles.ghostButton }}
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setShowCreateForm(false)}
+            style={{ ...styles.button, ...styles.ghostButton }}
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
 
-          {showCreateForm && selectedFlow?.id === templateSelectedFlow.id && (
-            <div className="glass-card" style={styles.section}>
-              {CreateTriggerBox()}
-            </div>
-          )}
+      <div style={{ marginTop: 18 }}>
 
-          <div style={{ display: "grid", gap: 14 }}>
             {flowTriggers.map((trigger) => (
               <div key={trigger.id}>{TriggerCard({ item: trigger })}</div>
             ))}
