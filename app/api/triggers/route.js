@@ -21,6 +21,7 @@ export async function GET(req) {
       return NextResponse.json(
         {
           triggers: [],
+          flows: [],
           session: null,
         },
         {
@@ -29,6 +30,15 @@ export async function GET(req) {
           },
         }
       );
+    }
+
+    const { data: flows, error: flowsError } = await supabase
+      .from("flows")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (flowsError) {
+      console.log("FLOWS ERROR:", flowsError);
     }
 
     let session = null;
@@ -50,6 +60,7 @@ export async function GET(req) {
     return NextResponse.json(
       {
         triggers: triggers || [],
+        flows: flows || [],
         session,
       },
       {
@@ -64,6 +75,7 @@ export async function GET(req) {
     return NextResponse.json(
       {
         triggers: [],
+        flows: [],
         session: null,
         message: err?.message || "Gagal mengambil triggers",
       },
@@ -79,12 +91,19 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { phone, flow_id } = body;
+    const { phone, flow_id, checkout } = body;
 
-    if (!phone || !flow_id) {
+    if (!phone) {
       return NextResponse.json({
         success: false,
-        message: "phone dan flow_id wajib diisi",
+        message: "phone wajib diisi",
+      });
+    }
+
+    if (!flow_id && checkout === undefined) {
+      return NextResponse.json({
+        success: false,
+        message: "flow_id atau checkout wajib diisi",
       });
     }
 
@@ -103,13 +122,22 @@ export async function POST(req) {
       });
     }
 
+    const payload = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (flow_id) {
+      payload.flow_id = flow_id;
+    }
+
+    if (checkout !== undefined) {
+      payload.checkout = checkout || {};
+    }
+
     if (existingSession) {
       const { error } = await supabase
         .from("sessions")
-        .update({
-          flow_id,
-          updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq("phone", phone);
 
       if (error) {
@@ -124,7 +152,8 @@ export async function POST(req) {
       const { error } = await supabase.from("sessions").insert([
         {
           phone,
-          flow_id,
+          flow_id: flow_id || null,
+          checkout: checkout || {},
           updated_at: new Date().toISOString(),
         },
       ]);
