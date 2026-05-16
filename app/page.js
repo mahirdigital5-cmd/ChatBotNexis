@@ -24,6 +24,7 @@ export default function Home() {
   const [type, setType] = useState("Mengandung");
   const [image, setImage] = useState("");
   const [media, setMedia] = useState([]);
+  const [mediaAnswerIndex, setMediaAnswerIndex] = useState(0);
   const [isFlowEntry, setIsFlowEntry] = useState(false);
 
   const [editingTriggerId, setEditingTriggerId] = useState(null);
@@ -34,6 +35,7 @@ export default function Home() {
   const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
   const [editImage, setEditImage] = useState("");
   const [editMedia, setEditMedia] = useState([]);
+  const [editMediaAnswerIndex, setEditMediaAnswerIndex] = useState(0);
 
   const [activeMenu, setActiveMenu] = useState("perangkat");
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -104,6 +106,20 @@ export default function Home() {
     if (imageCount > 0) return `${imageCount} foto`;
     if (videoCount > 0) return `${videoCount} video`;
     return "Tanpa media";
+  }
+
+  function getMediaAnswerIndex(item) {
+    const value = Number(item?.responseIndex);
+
+    if (Number.isInteger(value) && value >= 0) {
+      return value;
+    }
+
+    return 0;
+  }
+
+  function getMediaLabel(item) {
+    return `Jawaban ${getMediaAnswerIndex(item) + 1}`;
   }
 
   async function getFlows() {
@@ -300,7 +316,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  async function uploadMedia(file) {
+  async function uploadMedia(file, responseIndex = 0) {
     setUploadingCount((prev) => prev + 1);
 
     try {
@@ -332,6 +348,7 @@ export default function Home() {
         {
           type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
           url,
+          responseIndex,
         },
       ]);
 
@@ -345,7 +362,7 @@ export default function Home() {
     }
   }
 
-  async function uploadEditMedia(file) {
+  async function uploadEditMedia(file, responseIndex = 0) {
     setEditUploadingCount((prev) => prev + 1);
 
     try {
@@ -377,6 +394,7 @@ export default function Home() {
         {
           type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
           url,
+          responseIndex,
         },
       ]);
 
@@ -440,6 +458,7 @@ export default function Home() {
     setType("Mengandung");
     setImage("");
     setMedia([]);
+    setMediaAnswerIndex(0);
     setIsFlowEntry(false);
     setShowCreateForm(false);
     setUploadingCount(0);
@@ -458,6 +477,7 @@ export default function Home() {
     setEditType(item.type || "Mengandung");
     setEditIsFlowEntry(item.is_flow_entry === true);
     setEditMedia(itemMedia);
+    setEditMediaAnswerIndex(0);
     setEditImage(firstImage?.url || item.image || "");
   }
 
@@ -494,6 +514,7 @@ export default function Home() {
     setEditIsFlowEntry(false);
     setEditImage("");
     setEditMedia([]);
+    setEditMediaAnswerIndex(0);
     setEditUploadingCount(0);
 
     getAllTriggers();
@@ -1204,7 +1225,20 @@ export default function Home() {
               <span>Masuk / pindah alur</span>
             </label>
 
-            <label style={styles.label}>Foto / Video</label>
+            <label style={styles.label}>Foto / Video untuk Jawaban</label>
+
+            <select
+              value={mediaAnswerIndex}
+              onChange={(e) => setMediaAnswerIndex(Number(e.target.value))}
+              style={{ ...styles.input, marginBottom: 12 }}
+            >
+              {responseList.map((_, index) => (
+                <option key={index} value={index}>
+                  Media untuk Jawaban {index + 1}
+                </option>
+              ))}
+            </select>
+
             <label
               style={{
                 display: "block",
@@ -1224,13 +1258,13 @@ export default function Home() {
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
-                  files.forEach((file) => uploadMedia(file));
+                  files.forEach((file) => uploadMedia(file, mediaAnswerIndex));
                   e.target.value = "";
                 }}
               />
               <b>Upload Media</b>
               <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
-                Foto/video akan tampil di trigger card
+                Media akan masuk ke Jawaban {mediaAnswerIndex + 1}
               </p>
             </label>
 
@@ -1288,6 +1322,28 @@ export default function Home() {
               border: "1px solid rgba(255,255,255,0.08)",
             }}
           >
+            <p
+              style={{
+                color: "#00ff9d",
+                fontSize: 12,
+                fontWeight: 850,
+                marginBottom: 7,
+              }}
+            >
+              {getMediaLabel(item)}
+            </p>
+
+            <p
+              style={{
+                color: "#00ff9d",
+                fontSize: 12,
+                fontWeight: 850,
+                marginBottom: 7,
+              }}
+            >
+              {getMediaLabel(item)}
+            </p>
+
             {item.type === "video" ? (
               <video
                 src={item.url}
@@ -1338,87 +1394,120 @@ export default function Home() {
       return null;
     }
 
+    const grouped = itemMedia.reduce((acc, mediaItem) => {
+      const answerIndex = getMediaAnswerIndex(mediaItem);
+      if (!acc[answerIndex]) acc[answerIndex] = [];
+      acc[answerIndex].push(mediaItem);
+      return acc;
+    }, {});
+
     return (
       <div style={{ marginTop: 14 }}>
         <p style={{ ...styles.muted, fontSize: 13, marginBottom: 8 }}>
           Media: {getMediaSummary(item)}
         </p>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: itemMedia.length === 1 ? "minmax(0, 220px)" : "repeat(2, minmax(0, 160px))",
-            gap: 10,
-          }}
-        >
-          {itemMedia.slice(0, 4).map((mediaItem, mediaIndex) => (
-            <div
-              key={mediaIndex}
-              style={{
-                position: "relative",
-                height: itemMedia.length === 1 ? 145 : 105,
-                borderRadius: 18,
-                overflow: "hidden",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              {mediaItem.type === "video" ? (
-                <>
-                  <video
-                    src={mediaItem.url}
-                    muted
+        <div style={{ display: "grid", gap: 12 }}>
+          {Object.keys(grouped)
+            .sort((a, b) => Number(a) - Number(b))
+            .map((answerIndex) => {
+              const mediaItems = grouped[answerIndex];
+
+              return (
+                <div key={answerIndex}>
+                  <p
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
-                  <span
-                    style={{
-                      position: "absolute",
-                      left: 8,
-                      bottom: 8,
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      fontSize: 11,
+                      color: "#00ff9d",
+                      fontSize: 12,
                       fontWeight: 850,
-                      background: "rgba(0,0,0,0.62)",
+                      marginBottom: 8,
                     }}
                   >
-                    VIDEO
-                  </span>
-                </>
-              ) : (
-                <img
-                  src={mediaItem.url}
-                  alt="Media Preview"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-              )}
+                    Media Jawaban {Number(answerIndex) + 1}
+                  </p>
 
-              {mediaIndex === 3 && itemMedia.length > 4 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "grid",
-                    placeItems: "center",
-                    background: "rgba(0,0,0,0.58)",
-                    fontWeight: 950,
-                  }}
-                >
-                  +{itemMedia.length - 4}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        mediaItems.length === 1
+                          ? "minmax(0, 220px)"
+                          : "repeat(2, minmax(0, 160px))",
+                      gap: 10,
+                    }}
+                  >
+                    {mediaItems.slice(0, 4).map((mediaItem, mediaIndex) => (
+                      <div
+                        key={mediaIndex}
+                        style={{
+                          position: "relative",
+                          height: mediaItems.length === 1 ? 145 : 105,
+                          borderRadius: 18,
+                          overflow: "hidden",
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        {mediaItem.type === "video" ? (
+                          <>
+                            <video
+                              src={mediaItem.url}
+                              muted
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                display: "block",
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: "absolute",
+                                left: 8,
+                                bottom: 8,
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                fontSize: 11,
+                                fontWeight: 850,
+                                background: "rgba(0,0,0,0.62)",
+                              }}
+                            >
+                              VIDEO
+                            </span>
+                          </>
+                        ) : (
+                          <img
+                            src={mediaItem.url}
+                            alt="Media Preview"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block",
+                            }}
+                          />
+                        )}
+
+                        {mediaIndex === 3 && mediaItems.length > 4 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "grid",
+                              placeItems: "center",
+                              background: "rgba(0,0,0,0.58)",
+                              fontWeight: 950,
+                            }}
+                          >
+                            +{mediaItems.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            })}
         </div>
       </div>
     );
@@ -1710,7 +1799,20 @@ export default function Home() {
               <span>Masuk / pindah alur</span>
             </label>
 
-            <label style={styles.label}>Foto / Video</label>
+            <label style={styles.label}>Foto / Video untuk Jawaban</label>
+
+            <select
+              value={editMediaAnswerIndex}
+              onChange={(e) => setEditMediaAnswerIndex(Number(e.target.value))}
+              style={{ ...styles.input, marginBottom: 12 }}
+            >
+              {editResponseList.map((_, index) => (
+                <option key={index} value={index}>
+                  Media untuk Jawaban {index + 1}
+                </option>
+              ))}
+            </select>
+
             <label
               style={{
                 display: "block",
@@ -1730,11 +1832,14 @@ export default function Home() {
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
-                  files.forEach((file) => uploadEditMedia(file));
+                  files.forEach((file) => uploadEditMedia(file, editMediaAnswerIndex));
                   e.target.value = "";
                 }}
               />
               <b>Upload Media</b>
+              <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
+                Media akan masuk ke Jawaban {editMediaAnswerIndex + 1}
+              </p>
             </label>
 
             {editUploading && (
@@ -1766,6 +1871,7 @@ export default function Home() {
               setEditingTriggerId(null);
               setEditMedia([]);
               setEditImage("");
+              setEditMediaAnswerIndex(0);
               setEditUploadingCount(0);
             }}
             style={{ ...styles.button, ...styles.ghostButton }}
