@@ -24,6 +24,12 @@ export default function Home() {
     priceExtra: "",
     defaultShipping: "",
     shippingByAreaText: "",
+    templateTotal: "",
+    templateAskQty: "",
+    templateAskName: "",
+    templateFinalOrder: "",
+    templateDone: "",
+    templateCancel: "",
   });
 
   const [copyTargetFlow, setCopyTargetFlow] = useState({});
@@ -251,6 +257,12 @@ export default function Home() {
       priceExtra: checkout.priceExtra || "",
       defaultShipping: checkout.defaultShipping || "",
       shippingByAreaText: shippingByAreaToText(checkout.shippingByArea),
+      templateTotal: checkout.templates?.total || "",
+      templateAskQty: checkout.templates?.askQty || "",
+      templateAskName: checkout.templates?.askName || "",
+      templateFinalOrder: checkout.templates?.finalOrder || "",
+      templateDone: checkout.templates?.done || "",
+      templateCancel: checkout.templates?.cancel || "",
     });
   }
 
@@ -263,6 +275,14 @@ export default function Home() {
       priceExtra: Number(checkoutForm.priceExtra) || 0,
       defaultShipping: Number(checkoutForm.defaultShipping) || 0,
       shippingByArea: textToShippingByArea(checkoutForm.shippingByAreaText),
+      templates: {
+        total: String(checkoutForm.templateTotal || "").trim(),
+        askQty: String(checkoutForm.templateAskQty || "").trim(),
+        askName: String(checkoutForm.templateAskName || "").trim(),
+        finalOrder: String(checkoutForm.templateFinalOrder || "").trim(),
+        done: String(checkoutForm.templateDone || "").trim(),
+        cancel: String(checkoutForm.templateCancel || "").trim(),
+      },
     };
 
     const { error } = await supabase
@@ -2618,6 +2638,85 @@ export default function Home() {
                       placeholder={"bandung=15000\njakarta=20000"}
                       style={{ ...styles.textarea, minHeight: 110 }}
                     />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 16,
+                    borderRadius: 20,
+                    background: "rgba(0,0,0,0.16)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                  }}
+                >
+                  <h3 style={{ marginBottom: 8 }}>Template Kalimat Checkout</h3>
+                  <p style={{ ...styles.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
+                    Kamu bebas isi kalimatnya sendiri. Placeholder:
+                    [area], [qty], [produk], [subtotal], [ongkir], [total], [nama],
+                    [alamat], [pesanan].
+                  </p>
+
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div>
+                      <label style={styles.label}>Template Total Harga</label>
+                      <textarea
+                        value={checkoutForm.templateTotal}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, templateTotal: e.target.value })}
+                        placeholder={"baik kak.. untuk pengiriman ke [area]\ntotalnya [total]\nsudah termasuk ongkir dll dari kita"}
+                        style={{ ...styles.textarea, minHeight: 120 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.label}>Template Tanya Jumlah</label>
+                      <textarea
+                        value={checkoutForm.templateAskQty}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, templateAskQty: e.target.value })}
+                        placeholder="mau pesan berapa pcs ya kak?"
+                        style={{ ...styles.textarea, minHeight: 78 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.label}>Template Tanya Nama</label>
+                      <textarea
+                        value={checkoutForm.templateAskName}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, templateAskName: e.target.value })}
+                        placeholder="nama penerimanya siapa ya kak?"
+                        style={{ ...styles.textarea, minHeight: 78 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.label}>Template Konfirmasi Pesanan</label>
+                      <textarea
+                        value={checkoutForm.templateFinalOrder}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, templateFinalOrder: e.target.value })}
+                        placeholder={"nama: [nama]\nalamat: [alamat]\npesanan: [pesanan]\npengiriman: [area]\ntotal harga: [total]\n\nkami izin melanjutkan pesanannya ya kak"}
+                        style={{ ...styles.textarea, minHeight: 145 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.label}>Template Selesai / Disetujui</label>
+                      <textarea
+                        value={checkoutForm.templateDone}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, templateDone: e.target.value })}
+                        placeholder="siap kak, terima kasih. Pesanannya segera kami proses 🙏"
+                        style={{ ...styles.textarea, minHeight: 78 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.label}>Template Batal / Tidak Jadi</label>
+                      <textarea
+                        value={checkoutForm.templateCancel}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, templateCancel: e.target.value })}
+                        placeholder="baik kak, tidak apa-apa 🙏"
+                        style={{ ...styles.textarea, minHeight: 78 }}
+                      />
+                    </div>
                   </div>
                 </div>
 
