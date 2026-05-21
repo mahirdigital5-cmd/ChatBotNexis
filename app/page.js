@@ -74,8 +74,9 @@ export default function Home() {
   const [editUploadingCount, setEditUploadingCount] = useState(0);
 
   const [waStatus, setWaStatus] = useState(null);
-  const [qrData, setQrData] = useState(null);
-  const [showQr, setShowQr] = useState(false);
+  const [waEnabled, setWaEnabled] = useState(false);
+  const [waPhone, setWaPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState("");
   const [qrLoading, setQrLoading] = useState(false);
   const [qrMessage, setQrMessage] = useState("");
   const [qrFrameKey, setQrFrameKey] = useState(Date.now());
@@ -464,88 +465,108 @@ export default function Home() {
 
   async function getWaStatus() {
     try {
-      const res = await fetch(`${WA_ENGINE_URL}/qr-json?t=${Date.now()}`, {
+      const res = await fetch(`${WA_ENGINE_URL}/pairing-code-json?t=${Date.now()}`, {
         cache: "no-store",
         mode: "cors",
       });
 
       const data = await res.json();
 
-      setWaStatus(data.connected);
+      setWaStatus(data.connected === true);
+      setWaEnabled(data.enabled === true);
+      setPairingCode(data.pairingCode || "");
+      setQrMessage(data.pairingMessage || "");
+
+      if (data.pairingPhone && !waPhone) {
+        setWaPhone(data.pairingPhone);
+      }
 
       if (data.connected) {
-        setQrData(null);
         setQrLoading(false);
+        setPairingCode("");
         setQrMessage("WhatsApp sudah terhubung.");
-      } else {
-        setQrData(data.qr || null);
-
-        if (data.qr) {
-          setQrLoading(false);
-          setQrMessage("QR siap discan.");
-        }
       }
 
       return data;
     } catch (err) {
       setWaStatus(false);
+      setWaEnabled(false);
+      setQrMessage("WA Engine belum bisa diakses.");
       return null;
     }
   }
 
   async function connectWa() {
-    setShowQr(true);
+    const phone = String(waPhone || "").replace(/\D/g, "");
+
+    if (!phone || phone.length < 10) {
+      return alert("Isi nomor WhatsApp dulu. Contoh: 6281234567890 atau 081234567890");
+    }
+
     setQrLoading(true);
-    setQrData(null);
+    setPairingCode("");
     setWaStatus(false);
-    setQrMessage("Membuka QR dari WA Engine...");
+    setWaEnabled(true);
+    setQrMessage("Membuat kode pairing nomor HP...");
     setQrFrameKey(Date.now());
 
     try {
-      await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`, {
-        cache: "no-store",
-        mode: "no-cors",
-      });
-    } catch {}
-
-    setTimeout(() => {
-      setQrFrameKey(Date.now());
-      setQrLoading(false);
-      setQrMessage(
-        "QR ditampilkan dari WA Engine. Kalau belum muncul, klik Buka QR Langsung."
+      const res = await fetch(
+        `${WA_ENGINE_URL}/connect-phone?phone=${encodeURIComponent(phone)}&t=${Date.now()}`,
+        {
+          cache: "no-store",
+          mode: "cors",
+        }
       );
-      getWaStatus();
-    }, 3500);
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {}
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || "Gagal aktifkan WhatsApp");
+      }
+
+      setQrMessage(data.message || "Tunggu kode pairing muncul...");
+    } catch (err) {
+      alert(err.message || "Gagal aktifkan WhatsApp");
+      setQrLoading(false);
+      return;
+    }
+
+    let count = 0;
+    const timer = setInterval(async () => {
+      count += 1;
+      const data = await getWaStatus();
+
+      if (data?.connected || data?.pairingCode || count >= 20) {
+        clearInterval(timer);
+        setQrLoading(false);
+      }
+    }, 1500);
   }
 
   async function logoutWa() {
-    const ok = confirm("Nonaktifkan / logout WhatsApp?");
+    const ok = confirm("Nonaktifkan bot? Session WhatsApp tetap disimpan, jadi aktif lagi tidak perlu pairing ulang selama session masih valid.");
     if (!ok) return;
 
     try {
-      await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`, {
+      await fetch(`${WA_ENGINE_URL}/deactivate?t=${Date.now()}`, {
         cache: "no-store",
-        mode: "no-cors",
+        mode: "cors",
       });
     } catch {}
 
-    setShowQr(false);
     setQrLoading(false);
-    setQrData(null);
-    setQrMessage("");
+    setPairingCode("");
+    setQrMessage("Bot nonaktif.");
     setQrFrameKey(Date.now());
     setWaStatus(false);
+    setWaEnabled(false);
 
-    setTimeout(getWaStatus, 2000);
+    setTimeout(getWaStatus, 1000);
   }
-
-  useEffect(() => {
-    refreshAll();
-    getWaStatus();
-
-    const interval = setInterval(getWaStatus, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   async function uploadMedia(file, responseIndex = 0) {
     setUploadingCount((prev) => prev + 1);
@@ -1041,7 +1062,7 @@ export default function Home() {
       <>
         {Header({
           title: "Perangkat",
-          description: "Kelola koneksi WhatsApp, aktifkan/nonaktifkan device, dan tampilkan QR untuk scan.",
+          description: "Kelola koneksi WhatsApp pakai nomor HP / pairing code, tanpa QR.",
         })}
 
         <div
@@ -1094,13 +1115,23 @@ export default function Home() {
                           : "0 0 18px rgba(255,77,103,0.75)",
                       }}
                     />
-                    <b>{waStatus ? "Terhubung" : "Tidak Terhubung"}</b>
+                    <b>{waStatus ? "Terhubung" : waEnabled ? "Aktif / Menunggu Pairing" : "Tidak Terhubung"}</b>
                   </div>
 
                   <p style={{ ...styles.muted, marginTop: 12, lineHeight: 1.7 }}>
-                    Perangkat ini digunakan untuk menerima pesan masuk dan mengirim
-                    auto reply dari template yang sudah dibuat.
+                    Aktifkan dengan nomor HP. Kalau belum pernah login, sistem akan menampilkan kode pairing.
+                    Masukkan kode itu di WhatsApp: Perangkat tertaut - Tautkan dengan nomor telepon.
                   </p>
+
+                  <div style={{ marginTop: 18 }}>
+                    <label style={styles.label}>Nomor WhatsApp</label>
+                    <input
+                      value={waPhone}
+                      onChange={(e) => setWaPhone(e.target.value)}
+                      placeholder="Contoh: 6281234567890 atau 081234567890"
+                      style={{ ...styles.input, maxWidth: 380 }}
+                    />
+                  </div>
                 </div>
 
                 <div
@@ -1122,7 +1153,7 @@ export default function Home() {
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 24 }}>
                 {!waStatus ? (
                   <button onClick={connectWa} className="green-btn" style={styles.button}>
-                    Aktifkan
+                    {waEnabled ? "Buat Ulang Kode" : "Aktifkan"}
                   </button>
                 ) : (
                   <button onClick={logoutWa} style={{ ...styles.button, ...styles.dangerButton }}>
@@ -1130,143 +1161,69 @@ export default function Home() {
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    if (showQr) {
-                      setShowQr(false);
-                      setQrLoading(false);
-                      setQrMessage("");
-                      return;
-                    }
-
-                    connectWa();
-                  }}
-                  style={{ ...styles.button, ...styles.ghostButton }}
-                >
-                  {showQr ? "Tutup QR" : "Scan QR"}
-                </button>
+                {!waStatus && waEnabled && (
+                  <button onClick={logoutWa} style={{ ...styles.button, ...styles.dangerButton }}>
+                    Nonaktifkan
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
           <div className="glass-card" style={styles.section}>
-            <p style={styles.muted}>QR Scan</p>
-            <h3 style={{ marginTop: 8 }}>Barcode Perangkat</h3>
+            <p style={styles.muted}>Pairing Nomor HP</p>
+            <h3 style={{ marginTop: 8 }}>Kode Pairing</h3>
 
-            {showQr ? (
-              <div
-                style={{
-                  marginTop: 18,
-                  padding: 14,
-                  borderRadius: 24,
-                  background: "rgba(255,255,255,0.07)",
-                }}
-              >
-                <iframe
-                  key={qrFrameKey}
-                  src={`${WA_ENGINE_URL}/qr?t=${qrFrameKey}`}
-                  title="QR WhatsApp"
-                  style={{
-                    width: "100%",
-                    height: 340,
-                    border: "none",
-                    borderRadius: 18,
-                    background: "white",
-                    display: "block",
-                  }}
-                />
-
-                <p
-                  style={{
-                    ...styles.muted,
-                    marginTop: 12,
-                    textAlign: "center",
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {qrLoading
-                    ? "Sedang membuka QR dari WA Engine..."
-                    : qrMessage ||
-                      "Scan QR ini dari WhatsApp. Jika belum muncul, buka QR langsung."}
+            <div
+              style={{
+                marginTop: 18,
+                minHeight: 280,
+                borderRadius: 24,
+                display: "grid",
+                placeItems: "center",
+                textAlign: "center",
+                padding: 24,
+                background: "rgba(255,255,255,0.035)",
+                border: "1px dashed rgba(255,255,255,0.12)",
+              }}
+            >
+              <div>
+                <p style={{ fontSize: 13, color: "#8c929c", marginBottom: 10 }}>
+                  {qrLoading ? "Membuat kode pairing..." : qrMessage || "Masukkan nomor lalu klik Aktifkan."}
                 </p>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    justifyContent: "center",
-                    flexWrap: "wrap",
-                    marginTop: 12,
-                  }}
+                {pairingCode ? (
+                  <div
+                    style={{
+                      padding: "18px 22px",
+                      borderRadius: 22,
+                      background: "rgba(0,255,157,0.10)",
+                      border: "1px solid rgba(0,255,157,0.18)",
+                      color: "#00ff9d",
+                      fontSize: 34,
+                      fontWeight: 950,
+                      letterSpacing: 2,
+                    }}
+                  >
+                    {pairingCode}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 42, marginBottom: 12 }}>#</p>
+                )}
+
+                <p style={{ ...styles.muted, marginTop: 14, lineHeight: 1.7 }}>
+                  Buka WhatsApp di HP - Perangkat tertaut - Tautkan perangkat - Tautkan dengan nomor telepon,
+                  lalu masukkan kode di atas.
+                </p>
+
+                <button
+                  onClick={getWaStatus}
+                  style={{ ...styles.button, ...styles.ghostButton, marginTop: 14 }}
                 >
-                  <button
-                    onClick={() => {
-                      setQrFrameKey(Date.now());
-                      connectWa();
-                    }}
-                    className="green-btn"
-                    style={{
-                      ...styles.button,
-                      padding: "9px 13px",
-                    }}
-                  >
-                    Refresh QR
-                  </button>
-
-                  <a
-                    href={`${WA_ENGINE_URL}/qr?t=${Date.now()}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      ...styles.button,
-                      ...styles.ghostButton,
-                      display: "inline-block",
-                      textDecoration: "none",
-                      padding: "9px 13px",
-                    }}
-                  >
-                    Buka QR Langsung
-                  </a>
-
-                  <a
-                    href={`${WA_ENGINE_URL}/connect?t=${Date.now()}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      ...styles.button,
-                      ...styles.ghostButton,
-                      display: "inline-block",
-                      textDecoration: "none",
-                      padding: "9px 13px",
-                    }}
-                  >
-                    Restart Session
-                  </a>
-                </div>
+                  Refresh Status
+                </button>
               </div>
-            ) : (
-              <div
-                style={{
-                  marginTop: 18,
-                  minHeight: 280,
-                  borderRadius: 24,
-                  display: "grid",
-                  placeItems: "center",
-                  textAlign: "center",
-                  padding: 24,
-                  background: "rgba(255,255,255,0.035)",
-                  border: "1px dashed rgba(255,255,255,0.12)",
-                }}
-              >
-                <div>
-                  <p style={{ fontSize: 34, marginBottom: 12 }}>▦</p>
-                  <p style={styles.muted}>
-                    Klik Scan QR untuk membuka barcode perangkat.
-                  </p>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </>
@@ -1420,14 +1377,13 @@ export default function Home() {
             <input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder={"Contoh: harga, cod, ongkir\n\nForm otomatis:\n[form]\n\nKonteks terakhir:\n[mau cod atau transfer ?]\ncod"}
+              placeholder={"Contoh: harga, cod, ongkir\n\nKonteks terakhir:\n[mau cod atau transfer ?]\ncod"}
               style={{ ...styles.input, marginBottom: 8 }}
             />
 
             <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
               Format konteks terakhir: tulis <b>[pesan terakhir bot]</b>, lalu baris berikutnya jawaban customer.
               Contoh: <b>[mau cod atau transfer ?]</b> lalu baris baru <b>cod</b>.
-              Untuk form pemesanan otomatis, isi keyword <b>[form]</b>. Engine juga bisa bantu cocokkan kecamatan/kota/provinsi dari API wilayah gratis.
             </p>
 
             <label style={styles.label}>Jawaban</label>
@@ -2643,7 +2599,7 @@ export default function Home() {
                   <div>
                     <h3>Setting Checkout</h3>
                     <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
-                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga], [nama], [no_hp], [alamat], [maps], [patokan], [jam_terima], [kurir], [metode_pembayaran], [status_konfirmasi], [alamat_rapi], [alamat_jalan], [nama_jalan], [nomor_rumah], [rt_rw], [kelurahan], [kecamatan], [kode_pos], [kota_kabupaten], [provinsi]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
                     </p>
                   </div>
 
