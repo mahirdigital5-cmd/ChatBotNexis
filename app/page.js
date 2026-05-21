@@ -2643,7 +2643,7 @@ export default function Home() {
                   <div>
                     <h3>Setting Checkout</h3>
                     <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
-                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga], [nama], [no_hp], [alamat], [maps], [patokan], [jam_terima], [kurir], [metode_pembayaran], [status_konfirmasi]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga], [nama], [no_hp], [alamat], [maps], [patokan], [jam_terima], [kurir], [metode_pembayaran], [status_konfirmasi], [alamat_rapi], [alamat_jalan], [nama_jalan], [nomor_rumah], [rt_rw], [kelurahan], [kecamatan], [kode_pos], [kota_kabupaten], [provinsi]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
                     </p>
                   </div>
 
