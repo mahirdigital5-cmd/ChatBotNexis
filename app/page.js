@@ -1420,13 +1420,14 @@ export default function Home() {
             <input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder={"Contoh: harga, cod, ongkir\n\nKonteks terakhir:\n[mau cod atau transfer ?]\ncod"}
+              placeholder={"Contoh: harga, cod, ongkir\n\nForm otomatis:\n[form]\n\nKonteks terakhir:\n[mau cod atau transfer ?]\ncod"}
               style={{ ...styles.input, marginBottom: 8 }}
             />
 
             <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
               Format konteks terakhir: tulis <b>[pesan terakhir bot]</b>, lalu baris berikutnya jawaban customer.
               Contoh: <b>[mau cod atau transfer ?]</b> lalu baris baru <b>cod</b>.
+              Untuk form pemesanan otomatis, isi keyword <b>[form]</b>.
             </p>
 
             <label style={styles.label}>Jawaban</label>
@@ -2642,7 +2643,7 @@ export default function Home() {
                   <div>
                     <h3>Setting Checkout</h3>
                     <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
-                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga], [nama], [no_hp], [alamat], [maps], [patokan], [jam_terima], [kurir], [metode_pembayaran], [status_konfirmasi]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
                     </p>
                   </div>
 
