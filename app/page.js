@@ -1427,7 +1427,7 @@ export default function Home() {
             <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
               Format konteks terakhir: tulis <b>[pesan terakhir bot]</b>, lalu baris berikutnya jawaban customer.
               Contoh: <b>[mau cod atau transfer ?]</b> lalu baris baru <b>cod</b>.
-              Untuk form pemesanan otomatis, isi keyword <b>[form]</b>.
+              Untuk form pemesanan otomatis, isi keyword <b>[form]</b>. Engine juga bisa bantu cocokkan kecamatan/kota/provinsi dari API wilayah gratis.
             </p>
 
             <label style={styles.label}>Jawaban</label>
