@@ -45,6 +45,8 @@ export default function Home() {
     },
   ]);
   const [isFlowEntry, setIsFlowEntry] = useState(false);
+  const [contextMode, setContextMode] = useState("normal");
+  const [contextText, setContextText] = useState("");
 
   const [editingTriggerId, setEditingTriggerId] = useState(null);
   const [editKeyword, setEditKeyword] = useState("");
@@ -52,6 +54,8 @@ export default function Home() {
   const [editResponseList, setEditResponseList] = useState([""]);
   const [editType, setEditType] = useState("Mengandung");
   const [editIsFlowEntry, setEditIsFlowEntry] = useState(false);
+  const [editContextMode, setEditContextMode] = useState("normal");
+  const [editContextText, setEditContextText] = useState("");
   const [editImage, setEditImage] = useState("");
   const [editMedia, setEditMedia] = useState([]);
   const [editMediaAnswerIndex, setEditMediaAnswerIndex] = useState(0);
@@ -191,6 +195,38 @@ export default function Home() {
         active: item.active !== false,
       }))
       .filter((item) => item.message);
+  }
+
+  function getTriggerContextMeta(item) {
+    if (!item?.context_meta) return {};
+
+    if (typeof item.context_meta === "string") {
+      try {
+        return JSON.parse(item.context_meta) || {};
+      } catch {
+        return {};
+      }
+    }
+
+    return item.context_meta || {};
+  }
+
+  function getTriggerContextMode(item) {
+    return item?.context_mode || getTriggerContextMeta(item).contextMode || "normal";
+  }
+
+  function getTriggerContextText(item) {
+    return item?.context_text || getTriggerContextMeta(item).contextText || "";
+  }
+
+  function buildContextMeta(mode, text) {
+    const contextModeValue = mode === "last_bot_context" ? "last_bot_context" : "normal";
+    const contextTextValue = String(text || "").trim();
+
+    return {
+      contextMode: contextModeValue,
+      contextText: contextModeValue === "last_bot_context" ? contextTextValue : "",
+    };
   }
 
   function updateFollowupValue(index, field, value, mode = "create") {
@@ -645,6 +681,9 @@ export default function Home() {
         followups: normalizeFollowups(followups),
         active: true,
         is_flow_entry: isFlowEntry,
+        context_mode: contextMode,
+        context_text: contextMode === "last_bot_context" ? String(contextText || "").trim() : "",
+        context_meta: buildContextMeta(contextMode, contextText),
       },
     ]);
 
@@ -663,6 +702,8 @@ export default function Home() {
       },
     ]);
     setIsFlowEntry(false);
+    setContextMode("normal");
+    setContextText("");
     setShowCreateForm(false);
     setUploadingCount(0);
 
@@ -679,6 +720,8 @@ export default function Home() {
     setEditResponseList(splitResponses(item.response));
     setEditType(item.type || "Mengandung");
     setEditIsFlowEntry(item.is_flow_entry === true);
+    setEditContextMode(getTriggerContextMode(item));
+    setEditContextText(getTriggerContextText(item));
     setEditMedia(itemMedia);
     setEditMediaAnswerIndex(0);
     setEditFollowups(
@@ -718,6 +761,9 @@ export default function Home() {
         media: editMedia,
         followups: normalizeFollowups(editFollowups),
         is_flow_entry: editIsFlowEntry,
+        context_mode: editContextMode,
+        context_text: editContextMode === "last_bot_context" ? String(editContextText || "").trim() : "",
+        context_meta: buildContextMeta(editContextMode, editContextText),
       })
       .eq("id", id);
 
@@ -727,6 +773,8 @@ export default function Home() {
     setEditResponseList([""]);
     setEditType("Mengandung");
     setEditIsFlowEntry(false);
+    setEditContextMode("normal");
+    setEditContextText("");
     setEditImage("");
     setEditMedia([]);
     setEditMediaAnswerIndex(0);
@@ -756,6 +804,9 @@ export default function Home() {
         followups: getFollowupsFromItem(item),
         active: true,
         is_flow_entry: item.is_flow_entry === true,
+        context_mode: getTriggerContextMode(item),
+        context_text: getTriggerContextText(item),
+        context_meta: buildContextMeta(getTriggerContextMode(item), getTriggerContextText(item)),
       };
 
       const { data, error } = await supabase
@@ -1369,9 +1420,14 @@ export default function Home() {
             <input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Contoh: harga, cod, ongkir"
-              style={{ ...styles.input, marginBottom: 14 }}
+              placeholder={"Contoh: harga, cod, ongkir\n\nKonteks terakhir:\n[mau cod atau transfer ?]\ncod"}
+              style={{ ...styles.input, marginBottom: 8 }}
             />
+
+            <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
+              Format konteks terakhir: tulis <b>[pesan terakhir bot]</b>, lalu baris berikutnya jawaban customer.
+              Contoh: <b>[mau cod atau transfer ?]</b> lalu baris baru <b>cod</b>.
+            </p>
 
             <label style={styles.label}>Jawaban</label>
             {responseList.map((item, index) => (
@@ -1447,6 +1503,32 @@ export default function Home() {
               />
               <span>Masuk / pindah alur</span>
             </label>
+
+            <label style={styles.label}>Mode Trigger</label>
+            <select
+              value={contextMode}
+              onChange={(e) => setContextMode(e.target.value)}
+              style={{ ...styles.input, marginBottom: 10 }}
+            >
+              <option value="normal">Normal</option>
+              <option value="last_bot_context">Wajib setelah konteks terakhir bot</option>
+            </select>
+
+            {contextMode === "last_bot_context" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={styles.label}>Konteks terakhir bot</label>
+                <textarea
+                  value={contextText}
+                  onChange={(e) => setContextText(e.target.value)}
+                  placeholder="Contoh: mau cod atau transfer ?"
+                  style={{ ...styles.textarea, minHeight: 74 }}
+                />
+                <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginTop: 7 }}>
+                  Trigger ini hanya keluar kalau pesan terakhir bot mengandung konteks ini,
+                  lalu customer mengirim keyword di sebelah kiri.
+                </p>
+              </div>
+            )}
 
             <label style={styles.label}>Foto / Video untuk Jawaban</label>
 
@@ -1906,9 +1988,27 @@ export default function Home() {
               >
                 {itemFollowups.length} Follow Up
               </span>
+
+              {getTriggerContextMode(item) === "last_bot_context" && (
+                <span
+                  style={{
+                    ...styles.pill,
+                    background: "rgba(0,255,157,0.10)",
+                    color: "#00ff9d",
+                  }}
+                >
+                  Konteks Terakhir
+                </span>
+              )}
             </div>
 
             <h3 style={{ fontSize: 22, letterSpacing: -0.5 }}>{item.keyword}</h3>
+
+            {getTriggerContextMode(item) === "last_bot_context" && (
+              <p style={{ ...styles.muted, marginTop: 7, lineHeight: 1.6 }}>
+                Wajib setelah bot bilang: <b style={{ color: "white" }}>{getTriggerContextText(item)}</b>
+              </p>
+            )}
           </div>
         </div>
 
@@ -2092,8 +2192,13 @@ export default function Home() {
             <input
               value={editKeyword}
               onChange={(e) => setEditKeyword(e.target.value)}
-              style={{ ...styles.input, marginBottom: 14 }}
+              style={{ ...styles.input, marginBottom: 8 }}
             />
+
+            <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
+              Format konteks terakhir: <b>[pesan terakhir bot]</b> lalu baris berikutnya jawaban customer.
+              Contoh: <b>[mau cod atau transfer ?]</b> lalu baris baru <b>cod</b>.
+            </p>
 
             <label style={styles.label}>Jawaban</label>
             {editResponseList.map((answer, index) => (
@@ -2169,6 +2274,32 @@ export default function Home() {
               />
               <span>Masuk / pindah alur</span>
             </label>
+
+            <label style={styles.label}>Mode Trigger</label>
+            <select
+              value={editContextMode}
+              onChange={(e) => setEditContextMode(e.target.value)}
+              style={{ ...styles.input, marginBottom: 10 }}
+            >
+              <option value="normal">Normal</option>
+              <option value="last_bot_context">Wajib setelah konteks terakhir bot</option>
+            </select>
+
+            {editContextMode === "last_bot_context" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={styles.label}>Konteks terakhir bot</label>
+                <textarea
+                  value={editContextText}
+                  onChange={(e) => setEditContextText(e.target.value)}
+                  placeholder="Contoh: mau cod atau transfer ?"
+                  style={{ ...styles.textarea, minHeight: 74 }}
+                />
+                <p style={{ ...styles.muted, fontSize: 12, lineHeight: 1.6, marginTop: 7 }}>
+                  Trigger ini hanya keluar kalau pesan terakhir bot mengandung konteks ini,
+                  lalu customer mengirim keyword di sebelah kiri.
+                </p>
+              </div>
+            )}
 
             <label style={styles.label}>Foto / Video untuk Jawaban</label>
 
@@ -2511,7 +2642,7 @@ export default function Home() {
                   <div>
                     <h3>Setting Checkout</h3>
                     <p style={{ ...styles.muted, fontSize: 13, marginTop: 5, lineHeight: 1.7 }}>
-                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa.
+                      Harga dan ongkir ini khusus untuk alur ini saja. Kalimat tetap dibuat di Trigger/Jawaban biasa. Placeholder yang bisa dipakai: [area], [ongkir], [total], [subtotal], [qty], [produk], [harga]. Untuk keyword dinamis ongkir, boleh pakai: ke [area], ongkir [area], atau [area] berapa. Untuk trigger berbasis pesan terakhir bot, pakai format di keyword: [pesan terakhir bot] lalu baris berikutnya jawaban customer. Contoh: [mau cod atau transfer ?] lalu baris bawahnya cod.
                     </p>
                   </div>
 
