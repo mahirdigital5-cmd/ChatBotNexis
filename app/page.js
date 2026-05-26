@@ -471,7 +471,7 @@ export default function Home() {
 
       const data = await res.json();
 
-      setWaStatus(data.connected);
+      setWaStatus(data.connected === true);
 
       if (data.connected) {
         setQrData(null);
@@ -483,60 +483,98 @@ export default function Home() {
         if (data.qr) {
           setQrLoading(false);
           setQrMessage("QR siap discan.");
+        } else if (data.starting) {
+          setQrLoading(true);
+          setQrMessage("QR sedang dibuat, tunggu sebentar...");
+        } else {
+          setQrLoading(false);
+          setQrMessage("WhatsApp belum terhubung. Klik Aktifkan / Refresh QR.");
         }
       }
 
       return data;
     } catch (err) {
+      console.log("GET WA STATUS ERROR:", err?.message);
       setWaStatus(false);
+      setQrLoading(false);
+      setQrMessage("Gagal mengambil status WA Engine. Coba klik Refresh QR.");
       return null;
     }
   }
 
-  async function connectWa() {
+  async function waitForQr(maxTry = 30) {
+    for (let i = 0; i < maxTry; i++) {
+      const data = await getWaStatus();
+
+      if (data?.connected) {
+        setQrLoading(false);
+        setQrMessage("WhatsApp sudah terhubung.");
+        return data;
+      }
+
+      if (data?.qr) {
+        setQrData(data.qr);
+        setQrLoading(false);
+        setQrMessage("QR siap discan.");
+        setQrFrameKey(Date.now());
+        return data;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    setQrLoading(false);
+    setQrMessage("QR belum muncul. Klik Refresh QR sekali lagi atau Buat QR Baru.");
+    return null;
+  }
+
+  async function connectWa(forceReset = false) {
     setShowQr(true);
     setQrLoading(true);
     setQrData(null);
     setWaStatus(false);
-    setQrMessage("Membuka QR dari WA Engine...");
+    setQrMessage(forceReset ? "Membuat QR baru..." : "Membuka QR dari WA Engine...");
     setQrFrameKey(Date.now());
 
     try {
-      await fetch(`${WA_ENGINE_URL}/connect?t=${Date.now()}`, {
-        cache: "no-store",
-        mode: "no-cors",
-      });
-    } catch {}
+      const endpoint = forceReset ? "reset-session" : "connect";
 
-    setTimeout(() => {
-      setQrFrameKey(Date.now());
-      setQrLoading(false);
-      setQrMessage(
-        "QR ditampilkan dari WA Engine. Kalau belum muncul, klik Buka QR Langsung."
-      );
-      getWaStatus();
-    }, 3500);
+      await fetch(`${WA_ENGINE_URL}/${endpoint}?t=${Date.now()}`, {
+        cache: "no-store",
+        mode: "cors",
+      });
+    } catch (err) {
+      console.log("CONNECT WA ERROR:", err?.message);
+    }
+
+    await waitForQr(30);
   }
 
   async function logoutWa() {
     const ok = confirm("Nonaktifkan / logout WhatsApp?");
     if (!ok) return;
 
+    setQrLoading(true);
+    setQrMessage("Menonaktifkan WhatsApp...");
+    setQrData(null);
+
     try {
       await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`, {
         cache: "no-store",
-        mode: "no-cors",
+        mode: "cors",
       });
-    } catch {}
+    } catch (err) {
+      console.log("LOGOUT WA ERROR:", err?.message);
+    }
 
-    setShowQr(false);
-    setQrLoading(false);
+    setShowQr(true);
     setQrData(null);
-    setQrMessage("");
-    setQrFrameKey(Date.now());
     setWaStatus(false);
+    setQrFrameKey(Date.now());
+    setQrMessage("WhatsApp dinonaktifkan. Klik Aktifkan / Refresh QR untuk QR baru.");
+    setQrLoading(false);
 
-    setTimeout(getWaStatus, 2000);
+    setTimeout(getWaStatus, 1000);
   }
 
   useEffect(() => {
@@ -1162,19 +1200,50 @@ export default function Home() {
                   background: "rgba(255,255,255,0.07)",
                 }}
               >
-                <iframe
-                  key={qrFrameKey}
-                  src={`${WA_ENGINE_URL}/qr?t=${qrFrameKey}`}
-                  title="QR WhatsApp"
-                  style={{
-                    width: "100%",
-                    height: 340,
-                    border: "none",
-                    borderRadius: 18,
-                    background: "white",
-                    display: "block",
-                  }}
-                />
+                {qrData ? (
+                  <div
+                    style={{
+                      minHeight: 340,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "white",
+                      borderRadius: 18,
+                      padding: 16,
+                    }}
+                  >
+                    <img
+                      src={qrData}
+                      alt="QR WhatsApp"
+                      style={{
+                        width: 280,
+                        maxWidth: "100%",
+                        display: "block",
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      minHeight: 340,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "rgba(255,255,255,0.04)",
+                      borderRadius: 18,
+                      border: "1px dashed rgba(255,255,255,0.14)",
+                      textAlign: "center",
+                      padding: 18,
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontSize: 32, marginBottom: 10 }}>▦</p>
+                      <p style={{ ...styles.muted, lineHeight: 1.6 }}>
+                        {qrLoading
+                          ? "QR sedang dibuat..."
+                          : "Klik Refresh QR untuk membuat QR baru."}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <p
                   style={{
@@ -1201,10 +1270,7 @@ export default function Home() {
                   }}
                 >
                   <button
-                    onClick={() => {
-                      setQrFrameKey(Date.now());
-                      connectWa();
-                    }}
+                    onClick={() => connectWa(false)}
                     className="green-btn"
                     style={{
                       ...styles.button,
@@ -1229,20 +1295,16 @@ export default function Home() {
                     Buka QR Langsung
                   </a>
 
-                  <a
-                    href={`${WA_ENGINE_URL}/connect?t=${Date.now()}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => connectWa(true)}
                     style={{
                       ...styles.button,
                       ...styles.ghostButton,
-                      display: "inline-block",
-                      textDecoration: "none",
                       padding: "9px 13px",
                     }}
                   >
-                    Restart Session
-                  </a>
+                    Buat QR Baru
+                  </button>
                 </div>
               </div>
             ) : (
