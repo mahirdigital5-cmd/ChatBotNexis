@@ -382,13 +382,23 @@ export default function Home() {
   }
 
   async function addFlow() {
-    if (!newFlowName) return alert("Isi nama alur");
-
-    await supabase.from("flows").insert([{ name: newFlowName }]);
-
-    setNewFlowName("");
-    refreshAll();
+  if (!newFlowName.trim()) {
+    return alert("Isi nama alur");
   }
+
+  const { error } = await supabase
+    .from("flows")
+    .insert([{ name: newFlowName.trim() }]);
+
+  if (error) {
+    alert("Gagal tambah alur: " + error.message);
+    return;
+  }
+
+  setNewFlowName("");
+  await refreshAll();
+  alert("Alur berhasil ditambahkan");
+}
 
   async function updateFlowName(id) {
     if (!editingFlowName) return alert("Nama alur tidak boleh kosong");
