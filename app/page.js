@@ -2242,38 +2242,7 @@ export default function Home() {
                 </div>
               );
             })}
-                      </div>
-                    )}
-                  </div>
-                  <label
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      marginTop: 8,
-                      color: "#d1d5db",
-                      fontSize: 13,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={item.active !== false}
-                      onChange={(e) =>
-                        updateFollowupValue(index, "active", e.target.checked, "create")
-                      }
-                    />
-                    Aktif
-                  </label>
-                </div>
 
-                <button
-                  onClick={() => removeFollowup(index, "create")}
-                  style={{ ...styles.button, ...styles.dangerButton, padding: "8px 11px" }}
-                >
-                  Hapus
-                </button>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -3281,38 +3250,7 @@ export default function Home() {
                 </div>
               );
             })}
-                      </div>
-                    )}
-                  </div>
-                  <label
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      marginTop: 8,
-                      color: "#d1d5db",
-                      fontSize: 13,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={item.active !== false}
-                      onChange={(e) =>
-                        updateFollowupValue(index, "active", e.target.checked, "edit")
-                      }
-                    />
-                    Aktif
-                  </label>
-                </div>
 
-                <button
-                  onClick={() => removeFollowup(index, "edit")}
-                  style={{ ...styles.button, ...styles.dangerButton, padding: "8px 11px" }}
-                >
-                  Hapus
-                </button>
-              </div>
-            ))}
           </div>
         </div>
 
