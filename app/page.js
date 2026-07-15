@@ -206,18 +206,44 @@ export default function Home() {
     return [];
   }
 
+  function getFollowupResponseList(item) {
+    if (Array.isArray(item?.responseList) && item.responseList.length > 0) {
+      return item.responseList;
+    }
+
+    const storedValue = item?.response ?? item?.message ?? "";
+    return splitResponses(storedValue);
+  }
+
   function normalizeFollowups(list) {
     return list
-      .map((item) => ({
-        delayMinutes: Number(item.delayMinutes) > 0 ? Number(item.delayMinutes) : 1,
-        message: String(item.message || "").trim(),
-        media: getFollowupMedia(item).map((mediaItem) => ({
-          type: mediaItem.type === "video" ? "video" : "image",
-          url: String(mediaItem.url || "").trim(),
-        })),
-        active: item.active !== false,
-      }))
-      .filter((item) => item.message || item.media.length > 0);
+      .map((item) => {
+        const responseListValue = getFollowupResponseList(item);
+        const finalResponse = joinResponses(responseListValue);
+
+        return {
+          delayMinutes:
+            Number(item.delayMinutes) > 0 ? Number(item.delayMinutes) : 1,
+
+          // "response" adalah format baru.
+          // "message" tetap disimpan agar kompatibel dengan versi lama.
+          response: finalResponse,
+          message: finalResponse,
+
+          media: getFollowupMedia(item).map((mediaItem) => ({
+            type: mediaItem.type === "video" ? "video" : "image",
+            url: String(mediaItem.url || "").trim(),
+            responseIndex: getMediaAnswerIndex(mediaItem),
+          })),
+
+          active: item.active !== false,
+        };
+      })
+      .filter(
+        (item) =>
+          getResponseParts(item.response).length > 0 ||
+          item.media.length > 0
+      );
   }
 
   function getTriggerContextMeta(item) {
@@ -263,6 +289,121 @@ export default function Home() {
     };
 
     setter(updated);
+  }
+
+  function updateFollowupResponseValue(
+    followupIndex,
+    responseIndex,
+    value,
+    mode = "create"
+  ) {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+
+    setter((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== followupIndex) return item;
+
+        const responseListValue = [...getFollowupResponseList(item)];
+        responseListValue[responseIndex] = value;
+
+        return {
+          ...item,
+          responseList: responseListValue,
+          response: joinResponses(responseListValue),
+          message: joinResponses(responseListValue),
+        };
+      })
+    );
+  }
+
+  function addFollowupResponse(followupIndex, mode = "create") {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+
+    setter((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== followupIndex) return item;
+
+        return {
+          ...item,
+          responseList: [...getFollowupResponseList(item), ""],
+        };
+      })
+    );
+  }
+
+  function removeFollowupResponse(
+    followupIndex,
+    responseIndex,
+    mode = "create"
+  ) {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+
+    setter((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== followupIndex) return item;
+
+        const currentResponses = getFollowupResponseList(item);
+        const nextResponses = currentResponses.filter(
+          (_, currentIndex) => currentIndex !== responseIndex
+        );
+
+        const safeResponses =
+          nextResponses.length > 0 ? nextResponses : [""];
+
+        // Media yang mengarah ke jawaban yang dihapus dipindahkan ke
+        // jawaban terdekat. Media setelahnya turun satu nomor.
+        const nextMedia = getFollowupMedia(item).map((mediaItem) => {
+          const oldIndex = getMediaAnswerIndex(mediaItem);
+
+          if (oldIndex === responseIndex) {
+            return {
+              ...mediaItem,
+              responseIndex: Math.max(0, responseIndex - 1),
+            };
+          }
+
+          if (oldIndex > responseIndex) {
+            return {
+              ...mediaItem,
+              responseIndex: oldIndex - 1,
+            };
+          }
+
+          return mediaItem;
+        });
+
+        return {
+          ...item,
+          responseList: safeResponses,
+          response: joinResponses(safeResponses),
+          message: joinResponses(safeResponses),
+          media: nextMedia,
+          mediaAnswerIndex: Math.min(
+            Number(item.mediaAnswerIndex) || 0,
+            safeResponses.length - 1
+          ),
+        };
+      })
+    );
+  }
+
+  function updateFollowupMediaAnswerIndex(
+    followupIndex,
+    value,
+    mode = "create"
+  ) {
+    const setter = mode === "edit" ? setEditFollowups : setFollowups;
+
+    setter((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === followupIndex
+          ? {
+              ...item,
+              mediaAnswerIndex: Math.max(0, Number(value) || 0),
+            }
+          : item
+      )
+    );
   }
 
   async function uploadFollowupMedia(file, index, mode = "create") {
@@ -311,6 +452,10 @@ export default function Home() {
                   {
                     type: mediaType === "video" ? "video" : "image",
                     url,
+                    responseIndex: Math.max(
+                      0,
+                      Number(item.mediaAnswerIndex) || 0
+                    ),
                   },
                 ],
               }
@@ -354,6 +499,10 @@ export default function Home() {
       {
         delayMinutes: 5,
         message: "",
+        response: "",
+        responseList: [""],
+        media: [],
+        mediaAnswerIndex: 0,
         active: true,
       },
     ]);
@@ -450,6 +599,10 @@ export default function Home() {
             {
               delayMinutes: 5,
               message: "",
+              response: "",
+              responseList: [""],
+              media: [],
+              mediaAnswerIndex: 0,
               active: true,
             },
           ]
@@ -849,6 +1002,10 @@ export default function Home() {
       {
         delayMinutes: 5,
         message: "",
+        response: "",
+        responseList: [""],
+        media: [],
+        mediaAnswerIndex: 0,
         active: true,
       },
     ]);
@@ -879,12 +1036,27 @@ export default function Home() {
       getFollowupsFromItem(item).length > 0
         ? getFollowupsFromItem(item).map((followupItem) => ({
             ...followupItem,
-            media: getFollowupMedia(followupItem),
+            response:
+              followupItem?.response ?? followupItem?.message ?? "",
+            message:
+              followupItem?.response ?? followupItem?.message ?? "",
+            responseList: splitResponses(
+              followupItem?.response ?? followupItem?.message ?? ""
+            ),
+            media: getFollowupMedia(followupItem).map((mediaItem) => ({
+              ...mediaItem,
+              responseIndex: getMediaAnswerIndex(mediaItem),
+            })),
+            mediaAnswerIndex: 0,
           }))
         : [
             {
               delayMinutes: 5,
               message: "",
+              response: "",
+              responseList: [""],
+              media: [],
+              mediaAnswerIndex: 0,
               active: true,
             },
           ]
@@ -936,6 +1108,10 @@ export default function Home() {
       {
         delayMinutes: 5,
         message: "",
+        response: "",
+        responseList: [""],
+        media: [],
+        mediaAnswerIndex: 0,
         active: true,
       },
     ]);
@@ -1795,116 +1971,277 @@ export default function Home() {
           </div>
 
           <div style={{ display: "grid", gap: 10 }}>
-            {followups.map((item, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "120px 1fr auto",
-                  gap: 10,
-                  alignItems: "start",
-                  padding: 12,
-                  borderRadius: 16,
-                  background: "rgba(0,0,0,0.16)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                }}
-              >
-                <div>
-                  <label style={styles.label}>Menit</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.delayMinutes}
-                    onChange={(e) =>
-                      updateFollowupValue(
-                        index,
-                        "delayMinutes",
-                        e.target.value,
-                        "create"
-                      )
-                    }
-                    style={styles.input}
-                  />
-                </div>
+            {followups.map((item, index) => {
+              const followupResponses = getFollowupResponseList(item);
 
-                <div>
-                  <label style={styles.label}>Follow Up {index + 1}</label>
-                  <textarea
-                    value={item.message}
-                    onChange={(e) =>
-                      updateFollowupValue(index, "message", e.target.value, "create")
-                    }
-                    placeholder="Contoh: mau pesan yang mana kak?"
-                    style={{ ...styles.textarea, minHeight: 74 }}
-                  />
-                  <div style={{ marginTop: 10 }}>
-                    <label style={styles.label}>Foto / Video Follow Up</label>
+              return (
+                <div
+                  key={index}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "120px minmax(0, 1fr) auto",
+                    gap: 10,
+                    alignItems: "start",
+                    padding: 12,
+                    borderRadius: 16,
+                    background: "rgba(0,0,0,0.16)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <div>
+                    <label style={styles.label}>Menit</label>
                     <input
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadFollowupMedia(file, index, "create");
-                        e.target.value = "";
-                      }}
-                      style={{ ...styles.input, padding: 10 }}
+                      type="number"
+                      min="1"
+                      value={item.delayMinutes}
+                      onChange={(e) =>
+                        updateFollowupValue(
+                          index,
+                          "delayMinutes",
+                          e.target.value,
+                          "create"
+                        )
+                      }
+                      style={styles.input}
                     />
+                  </div>
 
-                    {getFollowupMedia(item).length > 0 && (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                          gap: 10,
-                          marginTop: 10,
-                        }}
-                      >
-                        {getFollowupMedia(item).map((mediaItem, mediaIndex) => (
+                  <div>
+                    <label style={styles.label}>Follow Up {index + 1}</label>
+
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {followupResponses.map((answer, answerIndex) => (
+                        <div key={answerIndex}>
                           <div
-                            key={`${mediaItem.url}-${mediaIndex}`}
                             style={{
-                              padding: 8,
-                              borderRadius: 14,
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.08)",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 10,
+                              marginBottom: 7,
                             }}
                           >
-                            {mediaItem.type === "video" ? (
-                              <video
-                                src={mediaItem.url}
-                                controls
-                                style={{ width: "100%", borderRadius: 10 }}
-                              />
-                            ) : (
-                              <img
-                                src={mediaItem.url}
-                                alt={`Follow up ${index + 1}`}
-                                style={{
-                                  width: "100%",
-                                  height: 110,
-                                  objectFit: "cover",
-                                  borderRadius: 10,
-                                }}
-                              />
-                            )}
+                            <b style={{ fontSize: 13, color: "#00ff9d" }}>
+                              Jawaban {answerIndex + 1}
+                            </b>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeFollowupMedia(index, mediaIndex, "create")
-                              }
-                              style={{
-                                ...styles.button,
-                                ...styles.dangerButton,
-                                width: "100%",
-                                marginTop: 7,
-                                padding: "7px 9px",
-                              }}
-                            >
-                              Hapus Media
-                            </button>
+                            {followupResponses.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeFollowupResponse(
+                                    index,
+                                    answerIndex,
+                                    "create"
+                                  )
+                                }
+                                style={{
+                                  ...styles.button,
+                                  ...styles.dangerButton,
+                                  padding: "6px 9px",
+                                }}
+                              >
+                                Hapus Jawaban
+                              </button>
+                            )}
                           </div>
+
+                          <textarea
+                            value={answer}
+                            onChange={(e) =>
+                              updateFollowupResponseValue(
+                                index,
+                                answerIndex,
+                                e.target.value,
+                                "create"
+                              )
+                            }
+                            placeholder={`Tulis Jawaban ${answerIndex + 1}`}
+                            style={{ ...styles.textarea, minHeight: 74 }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => addFollowupResponse(index, "create")}
+                      style={{
+                        ...styles.button,
+                        ...styles.ghostButton,
+                        marginTop: 10,
+                        padding: "8px 11px",
+                      }}
+                    >
+                      + Tambah Jawaban
+                    </button>
+
+                    <div
+                      style={{
+                        marginTop: 14,
+                        padding: 12,
+                        borderRadius: 15,
+                        background: "rgba(255,255,255,0.035)",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                      }}
+                    >
+                      <label style={styles.label}>
+                        Media masuk ke jawaban
+                      </label>
+
+                      <select
+                        value={Math.min(
+                          Number(item.mediaAnswerIndex) || 0,
+                          Math.max(0, followupResponses.length - 1)
+                        )}
+                        onChange={(e) =>
+                          updateFollowupMediaAnswerIndex(
+                            index,
+                            e.target.value,
+                            "create"
+                          )
+                        }
+                        style={{ ...styles.input, marginBottom: 9 }}
+                      >
+                        {followupResponses.map((_, answerIndex) => (
+                          <option key={answerIndex} value={answerIndex}>
+                            Jawaban {answerIndex + 1}
+                          </option>
                         ))}
+                      </select>
+
+                      <label style={styles.label}>Foto / Video Follow Up</label>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadFollowupMedia(file, index, "create");
+                          e.target.value = "";
+                        }}
+                        style={{ ...styles.input, padding: 10 }}
+                      />
+
+                      {getFollowupMedia(item).length > 0 && (
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(135px, 1fr))",
+                            gap: 10,
+                            marginTop: 10,
+                          }}
+                        >
+                          {getFollowupMedia(item).map(
+                            (mediaItem, mediaIndex) => (
+                              <div
+                                key={`${mediaItem.url}-${mediaIndex}`}
+                                style={{
+                                  padding: 8,
+                                  borderRadius: 14,
+                                  background: "rgba(255,255,255,0.05)",
+                                  border:
+                                    "1px solid rgba(255,255,255,0.08)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    color: "#00ff9d",
+                                    fontSize: 12,
+                                    fontWeight: 850,
+                                    marginBottom: 7,
+                                  }}
+                                >
+                                  Jawaban {getMediaAnswerIndex(mediaItem) + 1}
+                                </div>
+
+                                {mediaItem.type === "video" ? (
+                                  <video
+                                    src={mediaItem.url}
+                                    controls
+                                    style={{
+                                      width: "100%",
+                                      borderRadius: 10,
+                                    }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={mediaItem.url}
+                                    alt={`Follow up ${index + 1}`}
+                                    style={{
+                                      width: "100%",
+                                      height: 110,
+                                      objectFit: "cover",
+                                      borderRadius: 10,
+                                    }}
+                                  />
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeFollowupMedia(
+                                      index,
+                                      mediaIndex,
+                                      "create"
+                                    )
+                                  }
+                                  style={{
+                                    ...styles.button,
+                                    ...styles.dangerButton,
+                                    width: "100%",
+                                    marginTop: 7,
+                                    padding: "7px 9px",
+                                  }}
+                                >
+                                  Hapus Media
+                                </button>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <label
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        marginTop: 10,
+                        color: "#d1d5db",
+                        fontSize: 13,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.active !== false}
+                        onChange={(e) =>
+                          updateFollowupValue(
+                            index,
+                            "active",
+                            e.target.checked,
+                            "create"
+                          )
+                        }
+                      />
+                      Aktif
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={() => removeFollowup(index, "create")}
+                    style={{
+                      ...styles.button,
+                      ...styles.dangerButton,
+                      padding: "8px 11px",
+                    }}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              );
+            })}
                       </div>
                     )}
                   </div>
@@ -2673,111 +3010,277 @@ export default function Home() {
           </div>
 
           <div style={{ display: "grid", gap: 10 }}>
-            {editFollowups.map((item, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "120px 1fr auto",
-                  gap: 10,
-                  alignItems: "start",
-                  padding: 12,
-                  borderRadius: 16,
-                  background: "rgba(0,0,0,0.16)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                }}
-              >
-                <div>
-                  <label style={styles.label}>Menit</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.delayMinutes}
-                    onChange={(e) =>
-                      updateFollowupValue(index, "delayMinutes", e.target.value, "edit")
-                    }
-                    style={styles.input}
-                  />
-                </div>
+            {editFollowups.map((item, index) => {
+              const followupResponses = getFollowupResponseList(item);
 
-                <div>
-                  <label style={styles.label}>Follow Up {index + 1}</label>
-                  <textarea
-                    value={item.message}
-                    onChange={(e) =>
-                      updateFollowupValue(index, "message", e.target.value, "edit")
-                    }
-                    placeholder="Contoh: mau pesan yang mana kak?"
-                    style={{ ...styles.textarea, minHeight: 74 }}
-                  />
-                  <div style={{ marginTop: 10 }}>
-                    <label style={styles.label}>Foto / Video Follow Up</label>
+              return (
+                <div
+                  key={index}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "120px minmax(0, 1fr) auto",
+                    gap: 10,
+                    alignItems: "start",
+                    padding: 12,
+                    borderRadius: 16,
+                    background: "rgba(0,0,0,0.16)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <div>
+                    <label style={styles.label}>Menit</label>
                     <input
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadFollowupMedia(file, index, "edit");
-                        e.target.value = "";
-                      }}
-                      style={{ ...styles.input, padding: 10 }}
+                      type="number"
+                      min="1"
+                      value={item.delayMinutes}
+                      onChange={(e) =>
+                        updateFollowupValue(
+                          index,
+                          "delayMinutes",
+                          e.target.value,
+                          "edit"
+                        )
+                      }
+                      style={styles.input}
                     />
+                  </div>
 
-                    {getFollowupMedia(item).length > 0 && (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                          gap: 10,
-                          marginTop: 10,
-                        }}
-                      >
-                        {getFollowupMedia(item).map((mediaItem, mediaIndex) => (
+                  <div>
+                    <label style={styles.label}>Follow Up {index + 1}</label>
+
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {followupResponses.map((answer, answerIndex) => (
+                        <div key={answerIndex}>
                           <div
-                            key={`${mediaItem.url}-${mediaIndex}`}
                             style={{
-                              padding: 8,
-                              borderRadius: 14,
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.08)",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 10,
+                              marginBottom: 7,
                             }}
                           >
-                            {mediaItem.type === "video" ? (
-                              <video
-                                src={mediaItem.url}
-                                controls
-                                style={{ width: "100%", borderRadius: 10 }}
-                              />
-                            ) : (
-                              <img
-                                src={mediaItem.url}
-                                alt={`Follow up ${index + 1}`}
-                                style={{
-                                  width: "100%",
-                                  height: 110,
-                                  objectFit: "cover",
-                                  borderRadius: 10,
-                                }}
-                              />
-                            )}
+                            <b style={{ fontSize: 13, color: "#00ff9d" }}>
+                              Jawaban {answerIndex + 1}
+                            </b>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeFollowupMedia(index, mediaIndex, "edit")
-                              }
-                              style={{
-                                ...styles.button,
-                                ...styles.dangerButton,
-                                width: "100%",
-                                marginTop: 7,
-                                padding: "7px 9px",
-                              }}
-                            >
-                              Hapus Media
-                            </button>
+                            {followupResponses.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeFollowupResponse(
+                                    index,
+                                    answerIndex,
+                                    "edit"
+                                  )
+                                }
+                                style={{
+                                  ...styles.button,
+                                  ...styles.dangerButton,
+                                  padding: "6px 9px",
+                                }}
+                              >
+                                Hapus Jawaban
+                              </button>
+                            )}
                           </div>
+
+                          <textarea
+                            value={answer}
+                            onChange={(e) =>
+                              updateFollowupResponseValue(
+                                index,
+                                answerIndex,
+                                e.target.value,
+                                "edit"
+                              )
+                            }
+                            placeholder={`Tulis Jawaban ${answerIndex + 1}`}
+                            style={{ ...styles.textarea, minHeight: 74 }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => addFollowupResponse(index, "edit")}
+                      style={{
+                        ...styles.button,
+                        ...styles.ghostButton,
+                        marginTop: 10,
+                        padding: "8px 11px",
+                      }}
+                    >
+                      + Tambah Jawaban
+                    </button>
+
+                    <div
+                      style={{
+                        marginTop: 14,
+                        padding: 12,
+                        borderRadius: 15,
+                        background: "rgba(255,255,255,0.035)",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                      }}
+                    >
+                      <label style={styles.label}>
+                        Media masuk ke jawaban
+                      </label>
+
+                      <select
+                        value={Math.min(
+                          Number(item.mediaAnswerIndex) || 0,
+                          Math.max(0, followupResponses.length - 1)
+                        )}
+                        onChange={(e) =>
+                          updateFollowupMediaAnswerIndex(
+                            index,
+                            e.target.value,
+                            "edit"
+                          )
+                        }
+                        style={{ ...styles.input, marginBottom: 9 }}
+                      >
+                        {followupResponses.map((_, answerIndex) => (
+                          <option key={answerIndex} value={answerIndex}>
+                            Jawaban {answerIndex + 1}
+                          </option>
                         ))}
+                      </select>
+
+                      <label style={styles.label}>Foto / Video Follow Up</label>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadFollowupMedia(file, index, "edit");
+                          e.target.value = "";
+                        }}
+                        style={{ ...styles.input, padding: 10 }}
+                      />
+
+                      {getFollowupMedia(item).length > 0 && (
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(135px, 1fr))",
+                            gap: 10,
+                            marginTop: 10,
+                          }}
+                        >
+                          {getFollowupMedia(item).map(
+                            (mediaItem, mediaIndex) => (
+                              <div
+                                key={`${mediaItem.url}-${mediaIndex}`}
+                                style={{
+                                  padding: 8,
+                                  borderRadius: 14,
+                                  background: "rgba(255,255,255,0.05)",
+                                  border:
+                                    "1px solid rgba(255,255,255,0.08)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    color: "#00ff9d",
+                                    fontSize: 12,
+                                    fontWeight: 850,
+                                    marginBottom: 7,
+                                  }}
+                                >
+                                  Jawaban {getMediaAnswerIndex(mediaItem) + 1}
+                                </div>
+
+                                {mediaItem.type === "video" ? (
+                                  <video
+                                    src={mediaItem.url}
+                                    controls
+                                    style={{
+                                      width: "100%",
+                                      borderRadius: 10,
+                                    }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={mediaItem.url}
+                                    alt={`Follow up ${index + 1}`}
+                                    style={{
+                                      width: "100%",
+                                      height: 110,
+                                      objectFit: "cover",
+                                      borderRadius: 10,
+                                    }}
+                                  />
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeFollowupMedia(
+                                      index,
+                                      mediaIndex,
+                                      "edit"
+                                    )
+                                  }
+                                  style={{
+                                    ...styles.button,
+                                    ...styles.dangerButton,
+                                    width: "100%",
+                                    marginTop: 7,
+                                    padding: "7px 9px",
+                                  }}
+                                >
+                                  Hapus Media
+                                </button>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <label
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        marginTop: 10,
+                        color: "#d1d5db",
+                        fontSize: 13,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.active !== false}
+                        onChange={(e) =>
+                          updateFollowupValue(
+                            index,
+                            "active",
+                            e.target.checked,
+                            "edit"
+                          )
+                        }
+                      />
+                      Aktif
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={() => removeFollowup(index, "edit")}
+                    style={{
+                      ...styles.button,
+                      ...styles.dangerButton,
+                      padding: "8px 11px",
+                    }}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              );
+            })}
                       </div>
                     )}
                   </div>
