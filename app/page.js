@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 
-const WA_ENGINE_URL = "https://wa-engine-production-8ebe.up.railway.app";
+const WA_ENGINE_URL = (
+  process.env.NEXT_PUBLIC_WA_ENGINE_URL ||
+  "http://localhost:3000"
+).replace(/\/$/, "");
 const ANSWER_SEPARATOR = "\n---JAWABAN_BARU---\n";
 
 export default function Home() {
@@ -81,6 +84,7 @@ export default function Home() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrMessage, setQrMessage] = useState("");
   const [qrFrameKey, setQrFrameKey] = useState(Date.now());
+  const [deviceActionLoading, setDeviceActionLoading] = useState("");
 
   const [sendDelaySettings, setSendDelaySettings] = useState({
     enabled: true,
@@ -859,53 +863,45 @@ export default function Home() {
     return null;
   }
 
-  async function connectWa(forceReset = false) {
-    setShowQr(true);
-    setQrLoading(true);
-    setQrData(null);
-    setWaStatus(false);
-    setQrMessage(forceReset ? "Membuat QR baru..." : "Membuka QR dari WA Engine...");
-    setQrFrameKey(Date.now());
-
-    try {
-      const endpoint = forceReset ? "reset-session" : "connect";
-
-      await fetch(`${WA_ENGINE_URL}/${endpoint}?t=${Date.now()}`, {
-        cache: "no-store",
-        mode: "cors",
-      });
-    } catch (err) {
-      console.log("CONNECT WA ERROR:", err?.message);
-    }
-
-    await waitForQr(30);
+  function openWaEngineLink(path) {
+    const url = `${WA_ENGINE_URL}/${path}?t=${Date.now()}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  async function logoutWa() {
-    const ok = confirm("Nonaktifkan / logout WhatsApp?");
-    if (!ok) return;
+  function connectWa(forceReset = false) {
+    if (forceReset) {
+      const ok = confirm(
+        "Buat QR baru? Session WhatsApp lama akan dihapus dan akun perlu scan ulang."
+      );
+      if (!ok) return;
 
-    setQrLoading(true);
-    setQrMessage("Menonaktifkan WhatsApp...");
-    setQrData(null);
-
-    try {
-      await fetch(`${WA_ENGINE_URL}/logout?t=${Date.now()}`, {
-        cache: "no-store",
-        mode: "cors",
-      });
-    } catch (err) {
-      console.log("LOGOUT WA ERROR:", err?.message);
+      openWaEngineLink("reset-session");
+      setQrMessage(
+        "Session sedang direset. Setelah halaman JSON terbuka, klik Buka QR Langsung."
+      );
+      return;
     }
 
-    setShowQr(true);
-    setQrData(null);
-    setWaStatus(false);
-    setQrFrameKey(Date.now());
-    setQrMessage("WhatsApp dinonaktifkan. Klik Aktifkan / Refresh QR untuk QR baru.");
-    setQrLoading(false);
+    openWaEngineLink("connect");
+    setQrMessage(
+      "Perintah aktifkan dibuka di WA Engine lokal. Setelah itu klik Buka QR Langsung."
+    );
+  }
 
-    setTimeout(getWaStatus, 1000);
+  function openQrWa() {
+    openWaEngineLink("qr");
+  }
+
+  function logoutWa() {
+    const ok = confirm(
+      "Nonaktifkan WhatsApp? Bot akan logout dari perangkat ini."
+    );
+    if (!ok) return;
+
+    openWaEngineLink("logout");
+    setWaStatus(false);
+    setQrData(null);
+    setQrMessage("Perintah logout dibuka di WA Engine lokal.");
   }
 
   useEffect(() => {
@@ -1524,29 +1520,30 @@ export default function Home() {
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 24 }}>
                 {!waStatus ? (
-                  <button onClick={connectWa} className="green-btn" style={styles.button}>
+                  <button
+                    onClick={() => connectWa(false)}
+                    className="green-btn"
+                    style={{ ...styles.button }}
+                  >
                     Aktifkan
                   </button>
                 ) : (
-                  <button onClick={logoutWa} style={{ ...styles.button, ...styles.dangerButton }}>
+                  <button
+                    onClick={logoutWa}
+                    style={{
+                      ...styles.button,
+                      ...styles.dangerButton,
+                    }}
+                  >
                     Nonaktifkan
                   </button>
                 )}
 
                 <button
-                  onClick={() => {
-                    if (showQr) {
-                      setShowQr(false);
-                      setQrLoading(false);
-                      setQrMessage("");
-                      return;
-                    }
-
-                    connectWa();
-                  }}
+                  onClick={openQrWa}
                   style={{ ...styles.button, ...styles.ghostButton }}
                 >
-                  {showQr ? "Tutup QR" : "Scan QR"}
+                  Scan QR
                 </button>
               </div>
             </div>
@@ -1635,14 +1632,14 @@ export default function Home() {
                   }}
                 >
                   <button
-                    onClick={() => connectWa(false)}
+                    onClick={openQrWa}
                     className="green-btn"
                     style={{
                       ...styles.button,
                       padding: "9px 13px",
                     }}
                   >
-                    Refresh QR
+                    Buka QR
                   </button>
 
                   <a
