@@ -452,6 +452,8 @@ export default function Home() {
                   {
                     type: mediaType === "video" ? "video" : "image",
                     url,
+                    mimetype: data.mimetype || data.mimeType || file.type || "",
+                    fileName: data.fileName || data.filename || file.name || "",
                     responseIndex: Math.max(
                       0,
                       Number(item.mediaAnswerIndex) || 0
@@ -883,6 +885,8 @@ export default function Home() {
         {
           type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
           url,
+          mimetype: data.mimetype || data.mimeType || file.type || "",
+          fileName: data.fileName || data.filename || file.name || "",
           responseIndex,
         },
       ]);
@@ -929,6 +933,8 @@ export default function Home() {
         {
           type: data.type || (file.type.startsWith("video/") ? "video" : "image"),
           url,
+          mimetype: data.mimetype || data.mimeType || file.type || "",
+          fileName: data.fileName || data.filename || file.name || "",
           responseIndex,
         },
       ]);
