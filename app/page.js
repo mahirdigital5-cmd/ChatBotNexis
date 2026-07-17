@@ -82,6 +82,18 @@ export default function Home() {
   const [qrMessage, setQrMessage] = useState("");
   const [qrFrameKey, setQrFrameKey] = useState(Date.now());
 
+  const [sendDelaySettings, setSendDelaySettings] = useState({
+    enabled: true,
+    minReplyDelaySeconds: 8,
+    maxReplyDelaySeconds: 25,
+    minChatsBeforeBreak: 5,
+    maxChatsBeforeBreak: 10,
+    minBreakMinutes: 1,
+    maxBreakMinutes: 10,
+  });
+  const [sendDelayRuntime, setSendDelayRuntime] = useState(null);
+  const [sendDelayLoading, setSendDelayLoading] = useState(false);
+
   const uploading = uploadingCount > 0;
   const editUploading = editUploadingCount > 0;
 
@@ -730,6 +742,57 @@ export default function Home() {
     setCopyingTriggerId(null);
   }
 
+
+  async function getSendDelaySettings() {
+    try {
+      const res = await fetch(`${WA_ENGINE_URL}/send-delay-settings?t=${Date.now()}`, {
+        cache: "no-store",
+        mode: "cors",
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success && data.settings) {
+        setSendDelaySettings(data.settings);
+        setSendDelayRuntime(data.runtime || null);
+      }
+    } catch (err) {
+      console.log("GET SEND DELAY SETTINGS ERROR:", err?.message);
+    }
+  }
+
+  function updateSendDelaySetting(field, value) {
+    setSendDelaySettings((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function saveSendDelaySettings() {
+    setSendDelayLoading(true);
+
+    try {
+      const res = await fetch(`${WA_ENGINE_URL}/send-delay-settings`, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sendDelaySettings),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Gagal menyimpan pengaturan jeda");
+      }
+
+      setSendDelaySettings(data.settings);
+      setSendDelayRuntime(data.runtime || null);
+      alert("Pengaturan jeda berhasil disimpan");
+    } catch (err) {
+      alert("Gagal menyimpan pengaturan jeda: " + err.message);
+    } finally {
+      setSendDelayLoading(false);
+    }
+  }
+
   async function getWaStatus() {
     try {
       const res = await fetch(`${WA_ENGINE_URL}/qr-json?t=${Date.now()}`, {
@@ -848,8 +911,12 @@ export default function Home() {
   useEffect(() => {
     refreshAll();
     getWaStatus();
+    getSendDelaySettings();
 
-    const interval = setInterval(getWaStatus, 5000);
+    const interval = setInterval(() => {
+      getWaStatus();
+      getSendDelaySettings();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1627,6 +1694,123 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+
+        <div className="glass-card" style={styles.section}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 16,
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <p style={styles.muted}>Keamanan Pengiriman</p>
+              <h3 style={{ marginTop: 8 }}>Jeda Balasan Otomatis</h3>
+              <p style={{ ...styles.muted, marginTop: 8, lineHeight: 1.65 }}>
+                Jeda diterapkan satu kali untuk setiap paket balasan customer.
+                Setelah jumlah chat tertentu, seluruh antrean berhenti sementara.
+              </p>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 13px",
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.05)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={sendDelaySettings.enabled !== false}
+                onChange={(event) =>
+                  updateSendDelaySetting("enabled", event.target.checked)
+                }
+              />
+              <b>{sendDelaySettings.enabled !== false ? "Aktif" : "Nonaktif"}</b>
+            </label>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 14,
+              marginTop: 20,
+            }}
+          >
+            {[
+              ["Jeda balasan minimum (detik)", "minReplyDelaySeconds"],
+              ["Jeda balasan maksimum (detik)", "maxReplyDelaySeconds"],
+              ["Chat minimum sebelum istirahat", "minChatsBeforeBreak"],
+              ["Chat maksimum sebelum istirahat", "maxChatsBeforeBreak"],
+              ["Istirahat minimum (menit)", "minBreakMinutes"],
+              ["Istirahat maksimum (menit)", "maxBreakMinutes"],
+            ].map(([label, field]) => (
+              <label key={field}>
+                <span style={{ ...styles.muted, display: "block", marginBottom: 8 }}>
+                  {label}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  value={sendDelaySettings[field]}
+                  onChange={(event) =>
+                    updateSendDelaySetting(field, Number(event.target.value))
+                  }
+                  style={styles.input}
+                />
+              </label>
+            ))}
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              padding: 14,
+              borderRadius: 16,
+              background: "rgba(0,255,157,0.06)",
+              border: "1px solid rgba(0,255,157,0.12)",
+              lineHeight: 1.65,
+            }}
+          >
+            <b>Status saat ini:</b>{" "}
+            {sendDelayRuntime?.waiting
+              ? sendDelayRuntime.waitingType === "break"
+                ? "Sedang istirahat panjang"
+                : "Sedang menunggu jeda balasan"
+              : "Siap mengirim"}
+            <br />
+            <span style={styles.muted}>
+              Chat sejak istirahat terakhir: {sendDelayRuntime?.sentChatCountSinceBreak ?? 0}
+              {" · "}Istirahat berikutnya pada chat ke-{sendDelayRuntime?.nextBreakAfterChats ?? "-"}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+            <button
+              onClick={saveSendDelaySettings}
+              disabled={sendDelayLoading}
+              className="green-btn"
+              style={styles.button}
+            >
+              {sendDelayLoading ? "Menyimpan..." : "Simpan Pengaturan Jeda"}
+            </button>
+
+            <button
+              onClick={getSendDelaySettings}
+              style={{ ...styles.button, ...styles.ghostButton }}
+            >
+              Refresh Status
+            </button>
           </div>
         </div>
       </>
