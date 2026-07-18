@@ -764,25 +764,6 @@ export default function Home() {
     }
   }
 
-  // Mengambil status runtime tanpa menimpa angka yang sedang diketik user.
-  // Sebelumnya getSendDelaySettings() dipanggil setiap 5 detik sehingga form
-  // kembali ke nilai server lama (contoh: 10 kembali menjadi 8) sebelum disimpan.
-  async function getSendDelayRuntimeOnly() {
-    try {
-      const res = await fetch(`${WA_ENGINE_URL}/send-delay-settings?t=${Date.now()}`, {
-        cache: "no-store",
-        mode: "cors",
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setSendDelayRuntime(data.runtime || null);
-      }
-    } catch (err) {
-      console.log("GET SEND DELAY RUNTIME ERROR:", err?.message);
-    }
-  }
-
   function updateSendDelaySetting(field, value) {
     setSendDelaySettings((current) => ({
       ...current,
@@ -930,8 +911,7 @@ export default function Home() {
 
     const interval = setInterval(() => {
       getWaStatus();
-      // Hanya refresh status antrean. Jangan menimpa nilai form yang sedang diedit.
-      getSendDelayRuntimeOnly();
+      getSendDelaySettings();
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -2165,7 +2145,7 @@ export default function Home() {
             <div>
               <h3 style={{ fontSize: 18 }}>Follow Up</h3>
               <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
-                Follow up berhenti otomatis kalau customer membalas.
+                Waktu bersifat kumulatif. Contoh 30 lalu 60 berarti terkirim pada menit ke-30 dan ke-90. Follow up berhenti otomatis kalau customer membalas.
               </p>
             </div>
 
@@ -2196,7 +2176,7 @@ export default function Home() {
                   }}
                 >
                   <div>
-                    <label style={styles.label}>Menit</label>
+                    <label style={styles.label}>Jeda dari follow-up sebelumnya (menit)</label>
                     <input
                       type="number"
                       min="1"
@@ -3173,7 +3153,7 @@ export default function Home() {
             <div>
               <h3 style={{ fontSize: 18 }}>Follow Up</h3>
               <p style={{ ...styles.muted, fontSize: 13, marginTop: 5 }}>
-                Jika customer membalas, follow up berikutnya berhenti otomatis.
+                Waktu bersifat kumulatif. Contoh 30 lalu 60 berarti terkirim pada menit ke-30 dan ke-90. Jika customer membalas, follow up berikutnya berhenti otomatis.
               </p>
             </div>
 
@@ -3204,7 +3184,7 @@ export default function Home() {
                   }}
                 >
                   <div>
-                    <label style={styles.label}>Menit</label>
+                    <label style={styles.label}>Jeda dari follow-up sebelumnya (menit)</label>
                     <input
                       type="number"
                       min="1"
