@@ -764,6 +764,25 @@ export default function Home() {
     }
   }
 
+  // Mengambil status runtime tanpa menimpa angka yang sedang diketik user.
+  // Sebelumnya getSendDelaySettings() dipanggil setiap 5 detik sehingga form
+  // kembali ke nilai server lama (contoh: 10 kembali menjadi 8) sebelum disimpan.
+  async function getSendDelayRuntimeOnly() {
+    try {
+      const res = await fetch(`${WA_ENGINE_URL}/send-delay-settings?t=${Date.now()}`, {
+        cache: "no-store",
+        mode: "cors",
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setSendDelayRuntime(data.runtime || null);
+      }
+    } catch (err) {
+      console.log("GET SEND DELAY RUNTIME ERROR:", err?.message);
+    }
+  }
+
   function updateSendDelaySetting(field, value) {
     setSendDelaySettings((current) => ({
       ...current,
@@ -911,7 +930,8 @@ export default function Home() {
 
     const interval = setInterval(() => {
       getWaStatus();
-      getSendDelaySettings();
+      // Hanya refresh status antrean. Jangan menimpa nilai form yang sedang diedit.
+      getSendDelayRuntimeOnly();
     }, 5000);
     return () => clearInterval(interval);
   }, []);
